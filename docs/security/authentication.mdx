@@ -1,0 +1,629 @@
+---
+title: 'Authentication'
+description: 'Configure authentication for AWS, Azure, and Kubernetes'
+icon: 'key'
+---
+
+DevPlatform CLI supports multiple authentication methods for cloud providers and Kubernetes clusters.
+
+## Cloud Provider Authentication
+
+<Tabs>
+  <Tab title="AWS">
+    ### AWS IAM Authentication
+    
+    AWS authentication uses IAM credentials with multiple methods:
+    
+    <AccordionGroup>
+      <Accordion title="AWS CLI Configuration (Recommended)">
+        Configure AWS CLI with your credentials:
+        
+        ```bash
+        aws configure
+        ```
+        
+        Enter your credentials:
+        ```
+        AWS Access Key ID: AKIAIOSFODNN7EXAMPLE
+        AWS Secret Access Key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+        Default region name: us-east-1
+        Default output format: json
+        ```
+        
+        Verify configuration:
+        ```bash
+        aws sts get-caller-identity
+        ```
+      </Accordion>
+      
+      <Accordion title="Environment Variables">
+        Set credentials via environment variables:
+        
+        ```bash
+        export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+        export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+        export AWS_DEFAULT_REGION=us-east-1
+        ```
+      </Accordion>
+      
+      <Accordion title="IAM Role (EC2/ECS)">
+        When running on AWS compute, use IAM roles:
+        
+        ```bash
+        # No credentials needed - automatically retrieved from instance metadata
+        devplatform create --provider aws
+        ```
+        
+        Attach IAM role to EC2 instance with required permissions.
+      </Accordion>
+      
+      <Accordion title="AWS SSO">
+        For organizations using AWS SSO:
+        
+        ```bash
+        aws sso login --profile my-profile
+        export AWS_PROFILE=my-profile
+        devplatform create --provider aws
+        ```
+      </Accordion>
+    </AccordionGroup>
+    
+    ### Authentication Flow
+    
+    ```mermaid
+    sequenceDiagram
+        participant Dev as Developer
+        participant CLI as DevPlatform CLI
+        participant Creds as AWS Credentials
+        participant STS as AWS STS
+        participant IAM as AWS IAM
+        
+        Dev->>CLI: devplatform create --provider aws
+        CLI->>Creds: Load Credentials
+        
+        alt Credentials Found
+            Creds-->>CLI: Access Key + Secret
+            CLI->>STS: GetCallerIdentity
+            STS->>IAM: Verify Credentials
+            IAM-->>STS: Identity Confirmed
+            STS-->>CLI: Account ID + ARN
+            CLI->>IAM: Check Permissions
+            IAM-->>CLI: Permissions Valid
+            CLI-->>Dev: Provisioning Started
+        else Credentials Not Found
+            Creds-->>CLI: No Credentials
+            CLI-->>Dev: Error: Configure AWS CLI
+        end
+    ```
+  </Tab>
+  
+  <Tab title="Azure">
+    ### Azure AD Authentication
+    
+    Azure authentication uses Azure AD with multiple methods:
+    
+    <AccordionGroup>
+      <Accordion title="Azure CLI Login (Recommended)">
+        Interactive browser-based authentication:
+        
+        ```bash
+        az login
+        ```
+        
+        Select subscription:
+        ```bash
+        az account set --subscription "My Subscription"
+        ```
+        
+        Verify authentication:
+        ```bash
+        az account show
+        ```
+      </Accordion>
+      
+      <Accordion title="Service Principal">
+        For automation and CI/CD:
+        
+        ```bash
+        # Create service principal
+        az ad sp create-for-rbac --name "devplatform-sp" \
+          --role Contributor \
+          --scopes /subscriptions/{subscription-id}
+        ```
+        
+        Login with service principal:
+        ```bash
+        az login --service-principal \
+          --username {client-id} \
+          --password {client-secret} \
+          --tenant {tenant-id}
+        ```
+        
+        Or use environment variables:
+        ```bash
+        export AZURE_CLIENT_ID={client-id}
+        export AZURE_CLIENT_SECRET={client-secret}
+        export AZURE_TENANT_ID={tenant-id}
+        export AZURE_SUBSCRIPTION_ID={subscription-id}
+        ```
+      </Accordion>
+      
+      <Accordion title="Managed Identity">
+        When running on Azure compute:
+        
+        ```bash
+        # System-assigned managed identity
+        az login --identity
+        
+        # User-assigned managed identity
+        az login --identity --username {client-id}
+        ```
+        
+        No credentials needed - automatically retrieved from IMDS.
+      </Accordion>
+      
+      <Accordion title="Device Code Flow">
+        For environments without browser access:
+        
+        ```bash
+        az login --use-device-code
+        ```
+        
+        Follow the instructions to authenticate via another device.
+      </Accordion>
+    </AccordionGroup>
+    
+    ### Authentication Flow
+    
+    ```mermaid
+    sequenceDiagram
+        participant Dev as Developer
+        participant CLI as DevPlatform CLI
+        participant AzCLI as Azure CLI
+        participant AAD as Azure AD
+        participant ARM as Azure Resource Manager
+        
+        Dev->>CLI: devplatform create --provider azure
+        CLI->>AzCLI: Check Authentication
+        
+        alt Interactive Login
+            AzCLI->>AAD: Device Code Flow
+            AAD-->>Dev: Display Code
+            Dev->>AAD: Enter Code in Browser
+            AAD-->>AzCLI: Access Token
+        else Service Principal
+            AzCLI->>AAD: Client Credentials Flow
+            AAD-->>AzCLI: Access Token
+        end
+        
+        AzCLI-->>CLI: Token Retrieved
+        CLI->>ARM: Verify Subscription Access
+        ARM-->>CLI: Access Confirmed
+        CLI->>ARM: Check RBAC Permissions
+        ARM-->>CLI: Permissions Valid
+        CLI-->>Dev: Provisioning Started
+    ```
+  </Tab>
+</Tabs>
+
+## Required Permissions
+
+<Tabs>
+  <Tab title="AWS">
+    ### Minimum IAM Policy
+    
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ec2:*",
+            "rds:*",
+            "eks:*",
+            "iam:CreateRole",
+            "iam:AttachRolePolicy",
+            "iam:PassRole",
+            "iam:GetRole",
+            "iam:DeleteRole",
+            "s3:CreateBucket",
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:ListBucket",
+            "secretsmanager:CreateSecret",
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:PutSecretValue",
+            "kms:CreateKey",
+            "kms:DescribeKey",
+            "kms:Encrypt",
+            "kms:Decrypt"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+    ```
+    
+    <Warning>
+    This is a broad policy for initial setup. Use more restrictive policies in production with specific resource ARNs and conditions.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Azure">
+    ### Required RBAC Roles
+    
+    Assign these roles at subscription or resource group level:
+    
+    | Role | Scope | Purpose |
+    |------|-------|---------|
+    | **Contributor** | Subscription or RG | Create and manage resources |
+    | **User Access Administrator** | Subscription or RG | Assign RBAC roles to managed identities |
+    | **Network Contributor** | Subscription or RG | Manage VNets, NSGs, and networking |
+    
+    Assign roles via Azure CLI:
+    ```bash
+    # Assign Contributor role
+    az role assignment create \
+      --assignee {user-or-sp-id} \
+      --role Contributor \
+      --scope /subscriptions/{subscription-id}
+    
+    # Assign User Access Administrator
+    az role assignment create \
+      --assignee {user-or-sp-id} \
+      --role "User Access Administrator" \
+      --scope /subscriptions/{subscription-id}
+    ```
+    
+    <Warning>
+    User Access Administrator is required to create managed identities and assign roles. Use custom roles with limited permissions in production.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Kubernetes Authentication
+
+<Tabs>
+  <Tab title="AWS EKS">
+    ### EKS Authentication
+    
+    EKS uses AWS IAM for authentication via aws-auth ConfigMap:
+    
+    ```mermaid
+    sequenceDiagram
+        participant User as User
+        participant kubectl as kubectl
+        participant EKS as EKS API Server
+        participant IAM as AWS IAM
+        participant ConfigMap as aws-auth ConfigMap
+        
+        User->>kubectl: kubectl get pods
+        kubectl->>kubectl: Generate IAM Token
+        kubectl->>EKS: Request with IAM Token
+        EKS->>IAM: Validate Token
+        IAM-->>EKS: Token Valid
+        EKS->>ConfigMap: Lookup IAM ARN
+        ConfigMap-->>EKS: K8s Username/Groups
+        EKS->>EKS: Apply RBAC Rules
+        EKS-->>kubectl: Response
+        kubectl-->>User: Pod List
+    ```
+    
+    ### Configure kubectl
+    
+    ```bash
+    # Update kubeconfig
+    aws eks update-kubeconfig \
+      --region us-east-1 \
+      --name my-cluster
+    
+    # Verify access
+    kubectl get nodes
+    ```
+    
+    ### aws-auth ConfigMap
+    
+    Map IAM roles/users to Kubernetes users:
+    
+    ```yaml
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: aws-auth
+      namespace: kube-system
+    data:
+      mapRoles: |
+        - rolearn: arn:aws:iam::123456789012:role/DevRole
+          username: dev-user
+          groups:
+            - system:masters
+      mapUsers: |
+        - userarn: arn:aws:iam::123456789012:user/admin
+          username: admin
+          groups:
+            - system:masters
+    ```
+  </Tab>
+  
+  <Tab title="Azure AKS">
+    ### AKS Authentication
+    
+    AKS supports Azure AD integration for authentication:
+    
+    ```mermaid
+    sequenceDiagram
+        participant User as User
+        participant kubectl as kubectl
+        participant AKS as AKS API Server
+        participant AAD as Azure AD
+        
+        User->>kubectl: kubectl get pods
+        kubectl->>kubectl: Check Token
+        
+        alt Token Expired
+            kubectl->>AAD: Request New Token
+            AAD-->>User: Browser Login
+            User->>AAD: Authenticate
+            AAD-->>kubectl: Access Token
+        end
+        
+        kubectl->>AKS: Request with AAD Token
+        AKS->>AAD: Validate Token
+        AAD-->>AKS: Token Valid + User Info
+        AKS->>AKS: Apply RBAC Rules
+        AKS-->>kubectl: Response
+        kubectl-->>User: Pod List
+    ```
+    
+    ### Configure kubectl
+    
+    ```bash
+    # Get credentials
+    az aks get-credentials \
+      --resource-group my-rg \
+      --name my-cluster
+    
+    # Verify access (triggers AAD login)
+    kubectl get nodes
+    ```
+    
+    ### Azure AD Integration
+    
+    Enable Azure AD integration:
+    
+    ```bash
+    # Enable Azure AD integration
+    az aks update \
+      --resource-group my-rg \
+      --name my-cluster \
+      --enable-aad \
+      --aad-admin-group-object-ids {admin-group-id}
+    ```
+    
+    Map Azure AD groups to Kubernetes RBAC:
+    
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: aad-admin-binding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+    subjects:
+    - apiGroup: rbac.authorization.k8s.io
+      kind: Group
+      name: {aad-group-id}
+    ```
+  </Tab>
+</Tabs>
+
+## Service Account Authentication
+
+For applications running in Kubernetes:
+
+<Tabs>
+  <Tab title="AWS IRSA">
+    ### IAM Roles for Service Accounts
+    
+    IRSA allows pods to assume IAM roles:
+    
+    ```mermaid
+    graph TB
+        Pod[Application Pod] --> SA[ServiceAccount]
+        SA --> Annotation[eks.amazonaws.com/role-arn]
+        Annotation -.->|References| IAMRole[IAM Role]
+        Pod --> Webhook[Mutating Webhook]
+        Webhook --> OIDC[OIDC Provider]
+        OIDC --> IAMRole
+        IAMRole --> AWS[AWS Services]
+    ```
+    
+    Create IAM role with OIDC trust:
+    
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Federated": "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/EXAMPLE"
+          },
+          "Action": "sts:AssumeRoleWithWebIdentity",
+          "Condition": {
+            "StringEquals": {
+              "oidc.eks.us-east-1.amazonaws.com/id/EXAMPLE:sub": "system:serviceaccount:default:my-sa"
+            }
+          }
+        }
+      ]
+    }
+    ```
+    
+    Annotate ServiceAccount:
+    
+    ```yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: my-sa
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/my-role
+    ```
+  </Tab>
+  
+  <Tab title="Azure Workload Identity">
+    ### Workload Identity
+    
+    Workload Identity allows pods to use managed identities:
+    
+    ```mermaid
+    graph TB
+        Pod[Application Pod] --> SA[ServiceAccount]
+        SA --> Annotation[azure.workload.identity/client-id]
+        SA --> Label[azure.workload.identity/use: true]
+        Annotation -.->|References| MI[Managed Identity]
+        Pod --> Webhook[Mutating Webhook]
+        Webhook --> OIDC[OIDC Issuer]
+        OIDC --> MI
+        MI --> Azure[Azure Services]
+    ```
+    
+    Create managed identity and federated credential:
+    
+    ```bash
+    # Create managed identity
+    az identity create \
+      --name my-identity \
+      --resource-group my-rg
+    
+    # Create federated credential
+    az identity federated-credential create \
+      --name my-federated-credential \
+      --identity-name my-identity \
+      --resource-group my-rg \
+      --issuer {aks-oidc-issuer-url} \
+      --subject system:serviceaccount:default:my-sa
+    ```
+    
+    Annotate ServiceAccount:
+    
+    ```yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: my-sa
+      annotations:
+        azure.workload.identity/client-id: {client-id}
+      labels:
+        azure.workload.identity/use: "true"
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="AWS: Credentials not found">
+    **Error**: `Unable to locate credentials`
+    
+    **Solution**:
+    ```bash
+    # Check AWS CLI configuration
+    aws configure list
+    
+    # Verify credentials
+    aws sts get-caller-identity
+    
+    # Set credentials explicitly
+    export AWS_ACCESS_KEY_ID=your-key
+    export AWS_SECRET_ACCESS_KEY=your-secret
+    ```
+  </Accordion>
+  
+  <Accordion title="AWS: Insufficient permissions">
+    **Error**: `User is not authorized to perform: <action>`
+    
+    **Solution**:
+    ```bash
+    # Check current user/role
+    aws sts get-caller-identity
+    
+    # Review attached policies
+    aws iam list-attached-user-policies --user-name your-user
+    
+    # Contact administrator to grant required permissions
+    ```
+  </Accordion>
+  
+  <Accordion title="Azure: Not logged in">
+    **Error**: `Please run 'az login' to setup account`
+    
+    **Solution**:
+    ```bash
+    # Login interactively
+    az login
+    
+    # Or use service principal
+    az login --service-principal \
+      --username {client-id} \
+      --password {client-secret} \
+      --tenant {tenant-id}
+    ```
+  </Accordion>
+  
+  <Accordion title="Azure: Insufficient permissions">
+    **Error**: `The client does not have authorization to perform action`
+    
+    **Solution**:
+    ```bash
+    # Check current account
+    az account show
+    
+    # List role assignments
+    az role assignment list --assignee {user-or-sp-id}
+    
+    # Contact administrator to grant required roles
+    ```
+  </Accordion>
+  
+  <Accordion title="Kubernetes: Unauthorized">
+    **Error**: `error: You must be logged in to the server (Unauthorized)`
+    
+    **Solution**:
+    <Tabs>
+      <Tab title="AWS EKS">
+        ```bash
+        # Update kubeconfig
+        aws eks update-kubeconfig --name my-cluster --region us-east-1
+        
+        # Verify IAM user is in aws-auth ConfigMap
+        kubectl get configmap aws-auth -n kube-system -o yaml
+        ```
+      </Tab>
+      <Tab title="Azure AKS">
+        ```bash
+        # Get credentials
+        az aks get-credentials --resource-group my-rg --name my-cluster
+        
+        # Login to Azure AD
+        kubectl get nodes  # Triggers AAD login
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="RBAC Configuration" icon="users-gear" href="/security/rbac">
+    Configure role-based access control
+  </Card>
+  <Card title="Security Overview" icon="shield-halved" href="/security/overview">
+    Comprehensive security architecture
+  </Card>
+</CardGroup>

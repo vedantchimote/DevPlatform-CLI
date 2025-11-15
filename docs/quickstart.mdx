@@ -1,0 +1,423 @@
+---
+title: 'Quickstart'
+description: 'Deploy your first environment in under 5 minutes'
+icon: 'rocket'
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+<CardGroup cols={2}>
+  <Card title="Terraform" icon="terraform">
+    Version 1.5 or higher
+    ```bash
+    terraform --version
+    ```
+  </Card>
+  <Card title="Helm" icon="helm">
+    Version 3.0 or higher
+    ```bash
+    helm version
+    ```
+  </Card>
+  <Card title="kubectl" icon="kubernetes">
+    Version 1.27 or higher
+    ```bash
+    kubectl version --client
+    ```
+  </Card>
+  <Card title="Cloud CLI" icon="cloud">
+    AWS CLI 2.x or Azure CLI
+    ```bash
+    aws --version
+    # or
+    az --version
+    ```
+  </Card>
+</CardGroup>
+
+## Step 1: Install DevPlatform CLI
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    brew tap your-org/devplatform
+    brew install devplatform-cli
+    ```
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    curl -fsSL https://get.devplatform.io | sh
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    scoop bucket add devplatform https://github.com/your-org/scoop-bucket
+    scoop install devplatform-cli
+    ```
+  </Tab>
+  <Tab title="From Source">
+    ```bash
+    git clone https://github.com/your-org/devplatform-cli.git
+    cd devplatform-cli
+    go build -o devplatform
+    sudo mv devplatform /usr/local/bin/
+    ```
+  </Tab>
+</Tabs>
+
+Verify the installation:
+
+```bash
+devplatform version
+```
+
+## Step 2: Configure Cloud Credentials
+
+<Tabs>
+  <Tab title="AWS">
+    Configure AWS credentials using the AWS CLI:
+
+    ```bash
+    aws configure
+    ```
+
+    Or set environment variables:
+
+    ```bash
+    export AWS_ACCESS_KEY_ID="your-access-key"
+    export AWS_SECRET_ACCESS_KEY="your-secret-key"
+    export AWS_DEFAULT_REGION="us-east-1"
+    ```
+
+    Verify credentials:
+
+    ```bash
+    aws sts get-caller-identity
+    ```
+  </Tab>
+  <Tab title="Azure">
+    Login to Azure:
+
+    ```bash
+    az login
+    ```
+
+    Set your subscription:
+
+    ```bash
+    az account set --subscription "your-subscription-id"
+    ```
+
+    Verify credentials:
+
+    ```bash
+    az account show
+    ```
+  </Tab>
+</Tabs>
+
+## Step 3: Create Configuration File
+
+Create a configuration file at `~/.devplatform/config.yaml`:
+
+<Tabs>
+  <Tab title="AWS">
+    ```yaml
+    global:
+      cloud_provider: aws
+      timeout: 30
+      log_level: info
+
+    aws:
+      region: us-east-1
+      profile: default
+
+    environments:
+      dev:
+        network_cidr: "10.0.0.0/16"
+        db_instance_class: "db.t3.micro"
+        db_allocated_storage: 20
+        db_multi_az: false
+        k8s_node_count: 2
+
+    terraform:
+      backend:
+        type: s3
+        bucket: terraform-state-bucket
+        dynamodb_table: terraform-locks
+        region: us-east-1
+
+    helm:
+      chart_path: ./charts/devplatform-base
+    ```
+  </Tab>
+  <Tab title="Azure">
+    ```yaml
+    global:
+      cloud_provider: azure
+      timeout: 30
+      log_level: info
+
+    azure:
+      subscription_id: "12345678-1234-1234-1234-123456789012"
+      location: eastus
+      tenant_id: "87654321-4321-4321-4321-210987654321"
+
+    environments:
+      dev:
+        network_cidr: "10.0.0.0/16"
+        db_instance_class: "B_Gen5_1"
+        db_allocated_storage: 32
+        db_multi_az: false
+        k8s_node_count: 2
+
+    terraform:
+      backend:
+        type: azurerm
+        storage_account_name: tfstatestorage
+        container_name: tfstate
+        resource_group_name: terraform-state-rg
+
+    helm:
+      chart_path: ./charts/devplatform-base
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  The configuration file is optional. You can override settings using CLI flags.
+</Note>
+
+## Step 4: Deploy Your First Environment
+
+<Tabs>
+  <Tab title="AWS">
+    ```bash
+    devplatform create \
+      --app payment \
+      --env dev \
+      --provider aws
+    ```
+
+    Expected output:
+
+    ```
+    ✓ Validating credentials...
+    ✓ Loading configuration...
+    ✓ Initializing Terraform...
+    ✓ Creating VPC (10.0.0.0/16)...
+    ✓ Creating RDS instance (db.t3.micro)...
+    ✓ Creating EKS namespace (dev-payment)...
+    ✓ Deploying Helm chart...
+    ✓ Verifying pod health...
+
+    ✅ Environment created successfully!
+
+    Connection Information:
+      Database Endpoint: payment-dev.abc123.us-east-1.rds.amazonaws.com:5432
+      Kubernetes Namespace: dev-payment
+      Ingress URL: https://payment-dev.example.com
+
+    Estimated Monthly Cost: $75
+    ```
+  </Tab>
+  <Tab title="Azure">
+    ```bash
+    devplatform create \
+      --app payment \
+      --env dev \
+      --provider azure
+    ```
+
+    Expected output:
+
+    ```
+    ✓ Validating credentials...
+    ✓ Loading configuration...
+    ✓ Initializing Terraform...
+    ✓ Creating VNet (10.0.0.0/16)...
+    ✓ Creating Azure Database instance (B_Gen5_1)...
+    ✓ Creating AKS namespace (dev-payment)...
+    ✓ Deploying Helm chart...
+    ✓ Verifying pod health...
+
+    ✅ Environment created successfully!
+
+    Connection Information:
+      Database Endpoint: payment-dev.postgres.database.azure.com:5432
+      Kubernetes Namespace: dev-payment
+      Ingress URL: https://payment-dev.example.com
+
+    Estimated Monthly Cost: $70
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  The first deployment takes about 3 minutes. Subsequent deployments are faster due to cached state.
+</Tip>
+
+## Step 5: Check Environment Status
+
+```bash
+devplatform status --app payment --env dev
+```
+
+Output:
+
+```
+Environment: payment-dev
+Status: Healthy
+Provider: aws
+Last Updated: 2024-01-15 10:30:00
+
+Components:
+  ✓ VPC (vpc-abc123)
+  ✓ RDS (payment-dev-db)
+  ✓ Namespace (dev-payment)
+  ✓ Pods (2/2 ready)
+  ✓ Ingress (https://payment-dev.example.com)
+```
+
+## Step 6: Access Your Application
+
+<Steps>
+  <Step title="Update Kubeconfig">
+    The CLI automatically updates your kubeconfig. Verify access:
+
+    ```bash
+    kubectl get pods -n dev-payment
+    ```
+  </Step>
+  <Step title="Access Database">
+    Retrieve database credentials from Kubernetes secrets:
+
+    ```bash
+    kubectl get secret payment-db-creds -n dev-payment -o jsonpath='{.data.password}' | base64 -d
+    ```
+  </Step>
+  <Step title="Access Application">
+    Open the ingress URL in your browser or use curl:
+
+    ```bash
+    curl https://payment-dev.example.com/health
+    ```
+  </Step>
+</Steps>
+
+## Step 7: Teardown Environment
+
+When you're done, clean up resources:
+
+```bash
+devplatform destroy --app payment --env dev --confirm
+```
+
+Output:
+
+```
+⚠️  This will destroy the following resources:
+  - VPC: vpc-abc123
+  - RDS: payment-dev-db
+  - Namespace: dev-payment
+  - All Kubernetes resources
+
+✓ Uninstalling Helm release...
+✓ Destroying Terraform infrastructure...
+
+✅ Environment destroyed successfully!
+
+Cost Savings: $75/month
+```
+
+<Warning>
+  The `--confirm` flag skips the confirmation prompt. Omit it to be prompted before destruction.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Multi-Environment Setup"
+    icon="layer-group"
+    href="/guides/multi-environment"
+  >
+    Learn how to manage dev, staging, and prod environments
+  </Card>
+  <Card
+    title="Cost Optimization"
+    icon="dollar-sign"
+    href="/guides/cost-optimization"
+  >
+    Optimize your infrastructure costs
+  </Card>
+  <Card
+    title="CI/CD Integration"
+    icon="code-branch"
+    href="/advanced/ci-cd-integration"
+  >
+    Integrate with your CI/CD pipeline
+  </Card>
+  <Card
+    title="Troubleshooting"
+    icon="wrench"
+    href="/guides/troubleshooting"
+  >
+    Common issues and solutions
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Authentication Failed">
+    Ensure your cloud credentials are properly configured:
+
+    **AWS:**
+    ```bash
+    aws sts get-caller-identity
+    ```
+
+    **Azure:**
+    ```bash
+    az account show
+    ```
+  </Accordion>
+
+  <Accordion title="Terraform State Locked">
+    If another operation is in progress, wait for it to complete or force unlock:
+
+    ```bash
+    # Check lock status
+    devplatform status --app payment --env dev
+
+    # Force unlock (use with caution)
+    terraform force-unlock <lock-id>
+    ```
+  </Accordion>
+
+  <Accordion title="Pods Not Ready">
+    Check pod logs for errors:
+
+    ```bash
+    kubectl logs -n dev-payment -l app=payment
+    kubectl describe pod -n dev-payment
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Get Help
+
+<CardGroup cols={3}>
+  <Card title="Documentation" icon="book" href="/concepts/architecture">
+    Read the full documentation
+  </Card>
+  <Card title="Community" icon="slack" href="https://slack.devplatform.io">
+    Join our Slack community
+  </Card>
+  <Card title="Support" icon="envelope" href="mailto:support@devplatform.io">
+    Contact support
+  </Card>
+</CardGroup>

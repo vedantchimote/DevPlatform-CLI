@@ -1,0 +1,820 @@
+---
+title: 'Encryption'
+description: 'Configure encryption at rest and in transit for data protection'
+icon: 'lock'
+---
+
+DevPlatform CLI encrypts all data at rest and in transit using industry-standard encryption algorithms and key management services.
+
+## Encryption Architecture
+
+<Tabs>
+  <Tab title="AWS">
+    ```mermaid
+    graph TB
+        subgraph "Data Stores"
+            RDS[(RDS Database)]
+            EBS[EBS Volumes]
+            S3[S3 Buckets]
+            Secrets[Secrets Manager]
+        end
+        
+        subgraph "Encryption Keys"
+            KMS[AWS KMS]
+            CMK[Customer Managed Key]
+            DefaultKey[AWS Managed Key]
+        end
+        
+        subgraph "Key Management"
+            KeyPolicy[Key Policy]
+            KeyRotation[Automatic Rotation]
+            Audit[CloudTrail Audit]
+        end
+        
+        RDS -->|Encrypted with| CMK
+        EBS -->|Encrypted with| DefaultKey
+        S3 -->|Encrypted with| DefaultKey
+        Secrets -->|Encrypted with| CMK
+        
+        CMK -.->|Managed by| KMS
+        DefaultKey -.->|Managed by| KMS
+        
+        KMS --> KeyPolicy
+        KMS --> KeyRotation
+        KMS --> Audit
+    ```
+  </Tab>
+  
+  <Tab title="Azure">
+    ```mermaid
+    graph TB
+        subgraph "Data Stores"
+            AzureDB[(Azure Database)]
+            ManagedDisks[Managed Disks]
+            BlobStorage[Blob Storage]
+            KeyVaultSecrets[Key Vault Secrets]
+        end
+        
+        subgraph "Encryption Keys"
+            KeyVault[Azure Key Vault]
+            CMK[Customer Managed Key]
+            PMK[Platform Managed Key]
+        end
+        
+        subgraph "Key Management"
+            AccessPolicy[Access Policies]
+            KeyRotation[Key Rotation]
+            Audit[Activity Log]
+        end
+        
+        AzureDB -->|Encrypted with| CMK
+        ManagedDisks -->|Encrypted with| PMK
+        BlobStorage -->|Encrypted with| PMK
+        KeyVaultSecrets -->|Encrypted with| CMK
+        
+        CMK -.->|Managed by| KeyVault
+        PMK -.->|Managed by| KeyVault
+        
+        KeyVault --> AccessPolicy
+        KeyVault --> KeyRotation
+        KeyVault --> Audit
+    ```
+  </Tab>
+</Tabs>
+
+## Encryption at Rest
+
+<Tabs>
+  <Tab title="AWS">
+    ### Database Encryption (RDS)
+    
+    RDS databases are encrypted using AWS KMS:
+    
+    ```hcl
+    resource "aws_db_instance" "main" {
+      identifier = "devplatform-db"
+      engine     = "postgres"
+      
+      # Encryption configuration
+      storage_encrypted = true
+      kms_key_id       = aws_kms_key.rds.arn
+      
+      # Other configuration...
+    }
+    
+    resource "aws_kms_key" "rds" {
+      description             = "RDS encryption key"
+      deletion_window_in_days = 10
+      enable_key_rotation     = true
+      
+      tags = {
+        Name = "devplatform-rds-key"
+      }
+    }
+    
+    resource "aws_kms_alias" "rds" {
+      name          = "alias/devplatform-rds"
+      target_key_id = aws_kms_key.rds.key_id
+    }
+    ```
+    
+    <Note>
+    Encryption cannot be disabled after database creation. Always enable encryption for production databases.
+    </Note>
+    
+    ### EBS Volume Encryption
+    
+    EKS worker node volumes are encrypted by default:
+    
+    ```hcl
+    resource "aws_launch_template" "eks_nodes" {
+      name_prefix = "devplatform-eks-"
+      
+      block_device_mappings {
+        device_name = "/dev/xvda"
+        
+        ebs {
+          volume_size           = 100
+          volume_type           = "gp3"
+          encrypted             = true
+          kms_key_id           = aws_kms_key.ebs.arn
+          delete_on_termination = true
+        }
+      }
+    }
+    ```
+    
+    ### S3 Bucket Encryption
+    
+    S3 buckets for Terraform state are encrypted:
+    
+    ```hcl
+    resource "aws_s3_bucket" "terraform_state" {
+      bucket = "devplatform-terraform-state"
+    }
+    
+    resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+      bucket = aws_s3_bucket.terraform_state.id
+      
+      rule {
+        apply_server_side_encryption_by_default {
+          sse_algorithm     = "aws:kms"
+          kms_master_key_id = aws_kms_key.s3.arn
+        }
+        bucket_key_enabled = true
+      }
+    }
+    ```
+    
+    ### Secrets Manager Encryption
+    
+    Secrets are encrypted with KMS:
+    
+    ```hcl
+    resource "aws_secretsmanager_secret" "db_password" {
+      name       = "devplatform-db-password"
+      kms_key_id = aws_kms_key.secrets.arn
+      
+      recovery_window_in_days = 7
+    }
+    
+    resource "aws_secretsmanager_secret_version" "db_password" {
+      secret_id     = aws_secretsmanager_secret.db_password.id
+      secret_string = random_password.db_password.result
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Azure">
+    ### Database Encryption (Azure Database)
+    
+    Azure Database for PostgreSQL uses platform-managed encryption by default:
+    
+    ```hcl
+    resource "azurerm_postgresql_flexible_server" "main" {
+      name                = "devplatform-db"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      
+      # Encryption is enabled by default with platform-managed keys
+      # For customer-managed keys:
+      customer_managed_key {
+        key_vault_key_id = azurerm_key_vault_key.db.id
+      }
+      
+      # Other configuration...
+    }
+    
+    resource "azurerm_key_vault_key" "db" {
+      name         = "devplatform-db-key"
+      key_vault_id = azurerm_key_vault.main.id
+      key_type     = "RSA"
+      key_size     = 2048
+      
+      key_opts = [
+        "decrypt",
+        "encrypt",
+        "sign",
+        "unwrapKey",
+        "verify",
+        "wrapKey",
+      ]
+    }
+    ```
+    
+    <Note>
+    Azure Database encryption is always enabled. You can choose between platform-managed or customer-managed keys.
+    </Note>
+    
+    ### Managed Disk Encryption
+    
+    AKS node disks are encrypted by default:
+    
+    ```hcl
+    resource "azurerm_kubernetes_cluster" "main" {
+      name                = "devplatform-aks"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      
+      default_node_pool {
+        name       = "default"
+        node_count = 3
+        vm_size    = "Standard_D2s_v3"
+        
+        # Encryption at host (optional, additional layer)
+        enable_host_encryption = true
+      }
+      
+      # Disk encryption set (customer-managed keys)
+      disk_encryption_set_id = azurerm_disk_encryption_set.main.id
+    }
+    ```
+    
+    ### Blob Storage Encryption
+    
+    Storage accounts for Terraform state are encrypted:
+    
+    ```hcl
+    resource "azurerm_storage_account" "terraform_state" {
+      name                     = "devplatformtfstate"
+      resource_group_name      = azurerm_resource_group.main.name
+      location                 = azurerm_resource_group.main.location
+      account_tier             = "Standard"
+      account_replication_type = "GRS"
+      
+      # Encryption configuration
+      infrastructure_encryption_enabled = true
+      
+      customer_managed_key {
+        key_vault_key_id = azurerm_key_vault_key.storage.id
+      }
+    }
+    ```
+    
+    ### Key Vault Secrets
+    
+    Secrets in Key Vault are encrypted:
+    
+    ```hcl
+    resource "azurerm_key_vault_secret" "db_password" {
+      name         = "db-password"
+      value        = random_password.db_password.result
+      key_vault_id = azurerm_key_vault.main.id
+      
+      content_type = "password"
+    }
+    
+    resource "azurerm_key_vault" "main" {
+      name                = "devplatform-kv"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      tenant_id           = data.azurerm_client_config.current.tenant_id
+      sku_name            = "premium"
+      
+      # Soft delete and purge protection
+      soft_delete_retention_days = 7
+      purge_protection_enabled   = true
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Encryption in Transit
+
+All network communication uses TLS 1.2 or higher:
+
+<Tabs>
+  <Tab title="AWS">
+    ### Application Load Balancer TLS
+    
+    ```hcl
+    resource "aws_lb_listener" "https" {
+      load_balancer_arn = aws_lb.main.arn
+      port              = "443"
+      protocol          = "HTTPS"
+      ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+      certificate_arn   = aws_acm_certificate.main.arn
+      
+      default_action {
+        type             = "forward"
+        target_group_arn = aws_lb_target_group.main.arn
+      }
+    }
+    
+    # Redirect HTTP to HTTPS
+    resource "aws_lb_listener" "http" {
+      load_balancer_arn = aws_lb.main.arn
+      port              = "80"
+      protocol          = "HTTP"
+      
+      default_action {
+        type = "redirect"
+        
+        redirect {
+          port        = "443"
+          protocol    = "HTTPS"
+          status_code = "HTTP_301"
+        }
+      }
+    }
+    ```
+    
+    ### RDS TLS Connection
+    
+    ```yaml
+    # Application configuration
+    database:
+      host: devplatform-db.abc123.us-east-1.rds.amazonaws.com
+      port: 5432
+      sslmode: require  # Enforce TLS
+      sslrootcert: /etc/ssl/certs/rds-ca-2019-root.pem
+    ```
+    
+    Verify TLS connection:
+    
+    ```bash
+    psql "host=devplatform-db.abc123.us-east-1.rds.amazonaws.com \
+          port=5432 \
+          dbname=mydb \
+          user=admin \
+          sslmode=require"
+    ```
+    
+    ### Service-to-Service TLS
+    
+    Use mutual TLS (mTLS) between services:
+    
+    ```yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: backend-service
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:123456789012:certificate/abc123
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: https
+        service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+    spec:
+      type: LoadBalancer
+      ports:
+      - port: 443
+        targetPort: 8443
+        protocol: TCP
+    ```
+  </Tab>
+  
+  <Tab title="Azure">
+    ### Application Gateway TLS
+    
+    ```hcl
+    resource "azurerm_application_gateway" "main" {
+      name                = "devplatform-appgw"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      
+      ssl_policy {
+        policy_type = "Predefined"
+        policy_name = "AppGwSslPolicy20170401S"  # TLS 1.2 minimum
+      }
+      
+      ssl_certificate {
+        name     = "devplatform-cert"
+        data     = filebase64("certificate.pfx")
+        password = var.cert_password
+      }
+      
+      http_listener {
+        name                           = "https-listener"
+        frontend_ip_configuration_name = "frontend"
+        frontend_port_name             = "https"
+        protocol                       = "Https"
+        ssl_certificate_name           = "devplatform-cert"
+      }
+      
+      # Redirect HTTP to HTTPS
+      http_listener {
+        name                           = "http-listener"
+        frontend_ip_configuration_name = "frontend"
+        frontend_port_name             = "http"
+        protocol                       = "Http"
+      }
+      
+      redirect_configuration {
+        name                 = "http-to-https"
+        redirect_type        = "Permanent"
+        target_listener_name = "https-listener"
+        include_path         = true
+        include_query_string = true
+      }
+    }
+    ```
+    
+    ### Azure Database TLS Connection
+    
+    ```yaml
+    # Application configuration
+    database:
+      host: devplatform-db.postgres.database.azure.com
+      port: 5432
+      sslmode: require  # Enforce TLS
+      sslrootcert: /etc/ssl/certs/DigiCertGlobalRootCA.crt.pem
+    ```
+    
+    Enforce TLS on server:
+    
+    ```hcl
+    resource "azurerm_postgresql_flexible_server" "main" {
+      name = "devplatform-db"
+      
+      # Enforce SSL
+      ssl_enforcement_enabled          = true
+      ssl_minimal_tls_version_enforced = "TLS1_2"
+    }
+    ```
+    
+    ### Service-to-Service TLS
+    
+    Use Azure Service Mesh or Istio for mTLS:
+    
+    ```yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: backend-service
+      annotations:
+        service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    spec:
+      type: LoadBalancer
+      ports:
+      - port: 443
+        targetPort: 8443
+        protocol: TCP
+    ```
+  </Tab>
+</Tabs>
+
+## Key Management
+
+<Tabs>
+  <Tab title="AWS KMS">
+    ### Create Customer Managed Key
+    
+    ```hcl
+    resource "aws_kms_key" "main" {
+      description             = "DevPlatform encryption key"
+      deletion_window_in_days = 10
+      enable_key_rotation     = true
+      
+      policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+          {
+            Sid    = "Enable IAM User Permissions"
+            Effect = "Allow"
+            Principal = {
+              AWS = "arn:aws:iam::123456789012:root"
+            }
+            Action   = "kms:*"
+            Resource = "*"
+          },
+          {
+            Sid    = "Allow services to use the key"
+            Effect = "Allow"
+            Principal = {
+              Service = [
+                "rds.amazonaws.com",
+                "s3.amazonaws.com",
+                "secretsmanager.amazonaws.com"
+              ]
+            }
+            Action = [
+              "kms:Decrypt",
+              "kms:GenerateDataKey"
+            ]
+            Resource = "*"
+          }
+        ]
+      })
+    }
+    
+    resource "aws_kms_alias" "main" {
+      name          = "alias/devplatform"
+      target_key_id = aws_kms_key.main.key_id
+    }
+    ```
+    
+    ### Key Rotation
+    
+    Automatic key rotation is enabled:
+    
+    ```bash
+    # Check rotation status
+    aws kms get-key-rotation-status --key-id alias/devplatform
+    
+    # Enable rotation
+    aws kms enable-key-rotation --key-id alias/devplatform
+    ```
+    
+    <Note>
+    AWS automatically rotates CMKs annually. Old key material is retained for decryption.
+    </Note>
+    
+    ### Key Usage Audit
+    
+    Monitor key usage via CloudTrail:
+    
+    ```bash
+    # Query key usage
+    aws cloudtrail lookup-events \
+      --lookup-attributes AttributeKey=ResourceName,AttributeValue=alias/devplatform \
+      --max-results 10
+    ```
+  </Tab>
+  
+  <Tab title="Azure Key Vault">
+    ### Create Key Vault and Keys
+    
+    ```hcl
+    resource "azurerm_key_vault" "main" {
+      name                = "devplatform-kv"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      tenant_id           = data.azurerm_client_config.current.tenant_id
+      sku_name            = "premium"
+      
+      # Security features
+      soft_delete_retention_days = 7
+      purge_protection_enabled   = true
+      
+      # Network rules
+      network_acls {
+        default_action = "Deny"
+        bypass         = "AzureServices"
+        ip_rules       = ["1.2.3.4/32"]  # Your IP
+      }
+    }
+    
+    resource "azurerm_key_vault_key" "main" {
+      name         = "devplatform-key"
+      key_vault_id = azurerm_key_vault.main.id
+      key_type     = "RSA"
+      key_size     = 4096
+      
+      key_opts = [
+        "decrypt",
+        "encrypt",
+        "sign",
+        "unwrapKey",
+        "verify",
+        "wrapKey",
+      ]
+      
+      rotation_policy {
+        automatic {
+          time_before_expiry = "P30D"
+        }
+        
+        expire_after         = "P90D"
+        notify_before_expiry = "P29D"
+      }
+    }
+    ```
+    
+    ### Access Policies
+    
+    ```hcl
+    resource "azurerm_key_vault_access_policy" "app" {
+      key_vault_id = azurerm_key_vault.main.id
+      tenant_id    = data.azurerm_client_config.current.tenant_id
+      object_id    = azurerm_user_assigned_identity.app.principal_id
+      
+      key_permissions = [
+        "Get",
+        "Decrypt",
+        "Encrypt",
+      ]
+      
+      secret_permissions = [
+        "Get",
+      ]
+    }
+    ```
+    
+    ### Key Rotation
+    
+    ```bash
+    # Create new key version
+    az keyvault key create \
+      --vault-name devplatform-kv \
+      --name devplatform-key \
+      --kty RSA \
+      --size 4096
+    
+    # List key versions
+    az keyvault key list-versions \
+      --vault-name devplatform-kv \
+      --name devplatform-key
+    ```
+    
+    ### Key Usage Audit
+    
+    Monitor via Activity Log:
+    
+    ```bash
+    # Query key operations
+    az monitor activity-log list \
+      --resource-id /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.KeyVault/vaults/devplatform-kv \
+      --start-time 2024-01-01 \
+      --query "[?contains(operationName.value, 'keys')]"
+    ```
+  </Tab>
+</Tabs>
+
+## Encryption Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Use Customer-Managed Keys for Sensitive Data">
+    Use CMKs for databases, secrets, and sensitive storage:
+    
+    - Full control over key lifecycle
+    - Audit all key usage
+    - Ability to disable/delete keys
+    - Meet compliance requirements
+  </Accordion>
+  
+  <Accordion title="Enable Automatic Key Rotation">
+    Rotate encryption keys regularly:
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        aws kms enable-key-rotation --key-id alias/devplatform
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```hcl
+        rotation_policy {
+          automatic {
+            time_before_expiry = "P30D"
+          }
+          expire_after = "P90D"
+        }
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+  
+  <Accordion title="Enforce TLS 1.2 Minimum">
+    Disable older TLS versions:
+    
+    - TLS 1.0 and 1.1 are deprecated
+    - Use TLS 1.2 or 1.3 only
+    - Configure strong cipher suites
+  </Accordion>
+  
+  <Accordion title="Use Separate Keys per Environment">
+    Isolate encryption keys by environment:
+    
+    ```
+    devplatform-prod-rds-key
+    devplatform-staging-rds-key
+    devplatform-dev-rds-key
+    ```
+    
+    Prevents cross-environment key usage.
+  </Accordion>
+  
+  <Accordion title="Enable Soft Delete and Purge Protection">
+    Protect against accidental key deletion:
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```hcl
+        deletion_window_in_days = 30  # 7-30 days
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```hcl
+        soft_delete_retention_days = 90
+        purge_protection_enabled   = true
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+## Compliance and Certifications
+
+DevPlatform CLI encryption meets requirements for:
+
+<CardGroup cols={3}>
+  <Card title="FIPS 140-2" icon="shield-check">
+    AWS KMS and Azure Key Vault are FIPS 140-2 Level 2 validated
+  </Card>
+  <Card title="PCI DSS" icon="credit-card">
+    Encryption at rest and in transit for cardholder data
+  </Card>
+  <Card title="HIPAA" icon="hospital">
+    Encryption for protected health information (PHI)
+  </Card>
+  <Card title="SOC 2" icon="certificate">
+    Encryption controls for data security
+  </Card>
+  <Card title="GDPR" icon="shield-halved">
+    Encryption for personal data protection
+  </Card>
+  <Card title="ISO 27001" icon="file-shield">
+    Cryptographic controls implementation
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="KMS Key Access Denied">
+    **Error**: `AccessDeniedException: User is not authorized to perform: kms:Decrypt`
+    
+    **Solution**:
+    ```bash
+    # Check key policy
+    aws kms get-key-policy --key-id alias/devplatform --policy-name default
+    
+    # Grant decrypt permission
+    aws kms create-grant \
+      --key-id alias/devplatform \
+      --grantee-principal arn:aws:iam::123456789012:role/MyRole \
+      --operations Decrypt GenerateDataKey
+    ```
+  </Accordion>
+  
+  <Accordion title="RDS Encryption Cannot Be Enabled">
+    **Error**: `Cannot enable encryption on existing unencrypted database`
+    
+    **Solution**:
+    ```bash
+    # Create encrypted snapshot
+    aws rds create-db-snapshot \
+      --db-instance-identifier mydb \
+      --db-snapshot-identifier mydb-snapshot
+    
+    # Copy snapshot with encryption
+    aws rds copy-db-snapshot \
+      --source-db-snapshot-identifier mydb-snapshot \
+      --target-db-snapshot-identifier mydb-encrypted \
+      --kms-key-id alias/devplatform
+    
+    # Restore from encrypted snapshot
+    aws rds restore-db-instance-from-db-snapshot \
+      --db-instance-identifier mydb-encrypted \
+      --db-snapshot-identifier mydb-encrypted
+    ```
+  </Accordion>
+  
+  <Accordion title="TLS Connection Failed">
+    **Error**: `SSL connection has been closed unexpectedly`
+    
+    **Solution**:
+    ```bash
+    # Download RDS CA certificate
+    wget https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+    
+    # Test connection with SSL
+    psql "host=mydb.abc123.us-east-1.rds.amazonaws.com \
+          port=5432 \
+          dbname=mydb \
+          user=admin \
+          sslmode=require \
+          sslrootcert=global-bundle.pem"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Security Overview" icon="shield-halved" href="/security/overview">
+    Comprehensive security architecture
+  </Card>
+  <Card title="Audit Logging" icon="file-lines" href="/security/audit-logging">
+    Monitor encryption key usage
+  </Card>
+</CardGroup>

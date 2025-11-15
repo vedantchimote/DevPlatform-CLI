@@ -1,0 +1,507 @@
+---
+title: 'version'
+description: 'Display version information and check dependencies'
+---
+
+## Overview
+
+The `version` command displays version information for DevPlatform CLI and optionally checks all required dependencies.
+
+## Syntax
+
+```bash
+devplatform version [flags]
+```
+
+## Optional Flags
+
+<ParamField path="short" type="boolean" default="false">
+  Display only the version number
+</ParamField>
+
+<ParamField path="check-deps" type="boolean" default="false">
+  Check all dependency versions and requirements
+</ParamField>
+
+<ParamField path="output" type="string" default="text">
+  Output format
+  
+  **Options:** `text`, `json`, `yaml`
+</ParamField>
+
+## Examples
+
+### Basic Version
+
+```bash
+devplatform version
+```
+
+Output:
+
+```
+DevPlatform CLI v1.0.0
+
+Build Information:
+  Git Commit: a1b2c3d
+  Build Date: 2024-01-15T10:00:00Z
+  Go Version: go1.21.5
+  Platform: darwin/arm64
+
+For more information: https://docs.devplatform.io
+```
+
+### Short Version
+
+```bash
+devplatform version --short
+```
+
+Output:
+
+```
+v1.0.0
+```
+
+Useful for scripting:
+
+```bash
+VERSION=$(devplatform version --short)
+echo "Running DevPlatform CLI $VERSION"
+```
+
+### Check Dependencies
+
+```bash
+devplatform version --check-deps
+```
+
+Output:
+
+```
+DevPlatform CLI: v1.0.0
+
+Dependency Versions:
+  ✓ Terraform: v1.6.0 (minimum: v1.5.0)
+  ✓ Helm: v3.13.0 (minimum: v3.0.0)
+  ✓ kubectl: v1.28.0 (minimum: v1.27.0)
+  ✓ AWS CLI: v2.13.25 (minimum: v2.0.0)
+  ✓ Azure CLI: v2.53.0 (minimum: v2.0.0)
+
+✅ All dependencies satisfied!
+
+Cloud Provider Status:
+  ✓ AWS: Credentials configured (us-east-1)
+  ✓ Azure: Authenticated (subscription: 12345678-1234-1234-1234-123456789012)
+```
+
+### JSON Output
+
+```bash
+devplatform version --check-deps --output json
+```
+
+Output:
+
+```json
+{
+  "version": "v1.0.0",
+  "git_commit": "a1b2c3d",
+  "build_date": "2024-01-15T10:00:00Z",
+  "go_version": "go1.21.5",
+  "platform": "darwin/arm64",
+  "dependencies": {
+    "terraform": {
+      "installed": "v1.6.0",
+      "minimum": "v1.5.0",
+      "satisfied": true
+    },
+    "helm": {
+      "installed": "v3.13.0",
+      "minimum": "v3.0.0",
+      "satisfied": true
+    },
+    "kubectl": {
+      "installed": "v1.28.0",
+      "minimum": "v1.27.0",
+      "satisfied": true
+    },
+    "aws_cli": {
+      "installed": "v2.13.25",
+      "minimum": "v2.0.0",
+      "satisfied": true
+    },
+    "azure_cli": {
+      "installed": "v2.53.0",
+      "minimum": "v2.0.0",
+      "satisfied": true
+    }
+  },
+  "cloud_providers": {
+    "aws": {
+      "configured": true,
+      "region": "us-east-1"
+    },
+    "azure": {
+      "authenticated": true,
+      "subscription_id": "12345678-1234-1234-1234-123456789012"
+    }
+  }
+}
+```
+
+## Dependency Requirements
+
+### Required Dependencies
+
+<AccordionGroup>
+  <Accordion title="Terraform (1.5+)" icon="terraform">
+    **Purpose:** Infrastructure provisioning
+    
+    **Minimum Version:** 1.5.0
+    
+    **Check Version:**
+    ```bash
+    terraform --version
+    ```
+    
+    **Install/Upgrade:**
+    ```bash
+    # macOS
+    brew upgrade terraform
+    
+    # Linux
+    wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
+    unzip terraform_1.6.0_linux_amd64.zip
+    sudo mv terraform /usr/local/bin/
+    ```
+  </Accordion>
+
+  <Accordion title="Helm (3.0+)" icon="helm">
+    **Purpose:** Kubernetes package management
+    
+    **Minimum Version:** 3.0.0
+    
+    **Check Version:**
+    ```bash
+    helm version
+    ```
+    
+    **Install/Upgrade:**
+    ```bash
+    # macOS
+    brew upgrade helm
+    
+    # Linux
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    ```
+  </Accordion>
+
+  <Accordion title="kubectl (1.27+)" icon="kubernetes">
+    **Purpose:** Kubernetes cluster interaction
+    
+    **Minimum Version:** 1.27.0
+    
+    **Check Version:**
+    ```bash
+    kubectl version --client
+    ```
+    
+    **Install/Upgrade:**
+    ```bash
+    # macOS
+    brew upgrade kubectl
+    
+    # Linux
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Optional Dependencies
+
+<AccordionGroup>
+  <Accordion title="AWS CLI (2.0+)" icon="aws">
+    **Purpose:** AWS deployments
+    
+    **Required For:** `--provider aws`
+    
+    **Minimum Version:** 2.0.0
+    
+    **Check Version:**
+    ```bash
+    aws --version
+    ```
+    
+    **Install/Upgrade:**
+    ```bash
+    # macOS
+    brew upgrade awscli
+    
+    # Linux
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip awscliv2.zip
+    sudo ./aws/install --update
+    ```
+  </Accordion>
+
+  <Accordion title="Azure CLI (2.0+)" icon="microsoft">
+    **Purpose:** Azure deployments
+    
+    **Required For:** `--provider azure`
+    
+    **Minimum Version:** 2.0.0
+    
+    **Check Version:**
+    ```bash
+    az --version
+    ```
+    
+    **Install/Upgrade:**
+    ```bash
+    # macOS
+    brew upgrade azure-cli
+    
+    # Linux
+    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Version Information
+
+### Semantic Versioning
+
+DevPlatform CLI follows [Semantic Versioning](https://semver.org/):
+
+```
+v1.2.3
+│ │ │
+│ │ └─ Patch: Bug fixes, no breaking changes
+│ └─── Minor: New features, backward compatible
+└───── Major: Breaking changes
+```
+
+### Release Channels
+
+<Tabs>
+  <Tab title="Stable">
+    **Recommended for production**
+    
+    ```bash
+    # Install stable version
+    brew install devplatform-cli
+    
+    # Or download from releases
+    curl -LO https://github.com/your-org/devplatform-cli/releases/download/v1.0.0/devplatform_linux_amd64.tar.gz
+    ```
+    
+    - Thoroughly tested
+    - Production-ready
+    - Long-term support
+  </Tab>
+
+  <Tab title="Beta">
+    **For testing new features**
+    
+    ```bash
+    # Install beta version
+    brew install devplatform-cli --HEAD
+    
+    # Or download beta release
+    curl -LO https://github.com/your-org/devplatform-cli/releases/download/v1.1.0-beta.1/devplatform_linux_amd64.tar.gz
+    ```
+    
+    - New features
+    - May have bugs
+    - Not for production
+  </Tab>
+
+  <Tab title="Development">
+    **For contributors**
+    
+    ```bash
+    # Build from source
+    git clone https://github.com/your-org/devplatform-cli.git
+    cd devplatform-cli
+    go build -o devplatform
+    ```
+    
+    - Latest changes
+    - Unstable
+    - For development only
+  </Tab>
+</Tabs>
+
+## Use Cases
+
+### CI/CD Version Check
+
+```bash
+#!/bin/bash
+# check-version.sh
+
+REQUIRED_VERSION="v1.0.0"
+INSTALLED_VERSION=$(devplatform version --short)
+
+if [ "$INSTALLED_VERSION" != "$REQUIRED_VERSION" ]; then
+  echo "Error: DevPlatform CLI version mismatch"
+  echo "Required: $REQUIRED_VERSION"
+  echo "Installed: $INSTALLED_VERSION"
+  exit 1
+fi
+
+echo "Version check passed: $INSTALLED_VERSION"
+```
+
+### Dependency Validation
+
+```bash
+#!/bin/bash
+# validate-dependencies.sh
+
+# Check all dependencies
+devplatform version --check-deps --output json > deps.json
+
+# Parse results
+TERRAFORM_OK=$(jq -r '.dependencies.terraform.satisfied' deps.json)
+HELM_OK=$(jq -r '.dependencies.helm.satisfied' deps.json)
+KUBECTL_OK=$(jq -r '.dependencies.kubectl.satisfied' deps.json)
+
+if [ "$TERRAFORM_OK" != "true" ] || [ "$HELM_OK" != "true" ] || [ "$KUBECTL_OK" != "true" ]; then
+  echo "Error: Missing or outdated dependencies"
+  cat deps.json
+  exit 1
+fi
+
+echo "All dependencies satisfied"
+```
+
+### Version Reporting
+
+```bash
+#!/bin/bash
+# report-versions.sh
+
+# Generate version report
+cat << EOF
+DevPlatform Environment Report
+==============================
+
+CLI Version: $(devplatform version --short)
+
+Dependencies:
+$(devplatform version --check-deps | grep "✓")
+
+Cloud Providers:
+$(devplatform version --check-deps | grep "Cloud Provider Status" -A 10)
+
+Generated: $(date)
+EOF
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Dependency Not Found">
+    If a dependency is not found:
+
+    ```
+    ✗ Terraform: not found (minimum: v1.5.0)
+    ```
+
+    **Solution:**
+    1. Install the missing dependency
+    2. Ensure it's in your PATH
+    3. Verify installation: `which terraform`
+  </Accordion>
+
+  <Accordion title="Version Too Old">
+    If a dependency version is too old:
+
+    ```
+    ✗ Helm: v2.17.0 (minimum: v3.0.0)
+    ```
+
+    **Solution:**
+    1. Upgrade the dependency
+    2. Check for conflicts with other tools
+    3. Verify upgrade: `helm version`
+  </Accordion>
+
+  <Accordion title="Cloud Provider Not Configured">
+    If cloud credentials are not configured:
+
+    ```
+    ✗ AWS: Credentials not configured
+    ```
+
+    **Solution:**
+    ```bash
+    # Configure AWS
+    aws configure
+    
+    # Or Azure
+    az login
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (all dependencies satisfied if --check-deps) |
+| 1 | Missing or outdated dependencies (with --check-deps) |
+
+## Output Formats
+
+<Tabs>
+  <Tab title="Text (Default)">
+    Human-readable text format:
+
+    ```bash
+    devplatform version --check-deps
+    ```
+
+    Best for: Interactive terminal use
+  </Tab>
+
+  <Tab title="JSON">
+    Machine-readable JSON format:
+
+    ```bash
+    devplatform version --check-deps --output json
+    ```
+
+    Best for: Scripting, CI/CD, automation
+  </Tab>
+
+  <Tab title="YAML">
+    YAML format:
+
+    ```bash
+    devplatform version --check-deps --output yaml
+    ```
+
+    Best for: Configuration management
+  </Tab>
+</Tabs>
+
+## Related Commands
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install DevPlatform CLI
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get started guide
+  </Card>
+</CardGroup>
+
+## See Also
+
+- [Installation Guide](/installation)
+- [Troubleshooting](/guides/troubleshooting)
+- [Release Notes](https://github.com/your-org/devplatform-cli/releases)

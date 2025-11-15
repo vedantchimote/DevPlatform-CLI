@@ -1,0 +1,149 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "DevPlatform CLI",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/multi-cloud",
+              "concepts/workflows",
+              "concepts/state-management"
+            ]
+          },
+          {
+            "group": "AWS Deployment",
+            "pages": [
+              "aws/overview",
+              "aws/authentication",
+              "aws/networking",
+              "aws/database",
+              "aws/kubernetes"
+            ]
+          },
+          {
+            "group": "Azure Deployment",
+            "pages": [
+              "azure/overview",
+              "azure/authentication",
+              "azure/networking",
+              "azure/database",
+              "azure/kubernetes"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/overview",
+              "security/authentication",
+              "security/rbac",
+              "security/encryption",
+              "security/audit-logging"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/custom-modules",
+              "advanced/helm-customization",
+              "advanced/ci-cd-integration",
+              "advanced/disaster-recovery"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "API Reference",
+            "pages": [
+              "api-reference-interactive/introduction",
+              "api-reference-interactive/create",
+              "api-reference-interactive/status",
+              "api-reference-interactive/destroy",
+              "api-reference-interactive/version"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/first-deployment",
+              "guides/multi-environment",
+              "guides/cost-optimization",
+              "guides/troubleshooting",
+              "guides/migration"
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Documentation",
+          "href": "https://docs.devplatform.io",
+          "icon": "book-open-cover"
+        },
+        {
+          "anchor": "Community",
+          "href": "https://slack.devplatform.io",
+          "icon": "slack"
+        },
+        {
+          "anchor": "Blog",
+          "href": "https://blog.devplatform.io",
+          "icon": "newspaper"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:support@devplatform.io"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/your-org/devplatform-cli"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/your-org/devplatform-cli",
+      "linkedin": "https://www.linkedin.com/company/devplatform",
+      "twitter": "https://twitter.com/devplatform"
+    }
+  }
+}

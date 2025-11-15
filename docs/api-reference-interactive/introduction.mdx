@@ -1,0 +1,449 @@
+---
+title: 'API Reference'
+description: 'Complete reference for all DevPlatform CLI commands'
+icon: 'terminal'
+---
+
+## Overview
+
+DevPlatform CLI provides a simple, intuitive command-line interface for provisioning and managing infrastructure environments on AWS and Azure.
+
+## Command Structure
+
+All commands follow this general structure:
+
+```bash
+devplatform <command> [flags]
+```
+
+## Available Commands
+
+<CardGroup cols={2}>
+  <Card title="create" icon="plus" href="/api-reference/create">
+    Provision a new infrastructure environment
+  </Card>
+  <Card title="status" icon="chart-line" href="/api-reference/status">
+    Check the status of an environment
+  </Card>
+  <Card title="destroy" icon="trash" href="/api-reference/destroy">
+    Teardown an infrastructure environment
+  </Card>
+  <Card title="version" icon="code-branch" href="/api-reference/version">
+    Display version information
+  </Card>
+</CardGroup>
+
+## Global Flags
+
+These flags are available for all commands:
+
+<ParamField path="config-file" type="string" default="~/.devplatform/config.yaml">
+  Path to configuration file
+</ParamField>
+
+<ParamField path="verbose" type="boolean" default="false">
+  Enable verbose output
+</ParamField>
+
+<ParamField path="debug" type="boolean" default="false">
+  Enable debug logging (includes all verbose output plus internal details)
+</ParamField>
+
+<ParamField path="no-color" type="boolean" default="false">
+  Disable colored output (useful for CI/CD environments)
+</ParamField>
+
+<ParamField path="help" type="boolean" default="false">
+  Display help information for any command
+</ParamField>
+
+## Common Patterns
+
+### Basic Usage
+
+```bash
+# Create an environment
+devplatform create --app myapp --env dev --provider aws
+
+# Check status
+devplatform status --app myapp --env dev
+
+# Destroy environment
+devplatform destroy --app myapp --env dev --confirm
+```
+
+### With Configuration File
+
+```bash
+# Use custom config file
+devplatform create \
+  --app myapp \
+  --env dev \
+  --config-file ./custom-config.yaml
+```
+
+### Verbose Output
+
+```bash
+# Enable verbose logging
+devplatform create \
+  --app myapp \
+  --env dev \
+  --verbose
+
+# Enable debug logging
+devplatform create \
+  --app myapp \
+  --env dev \
+  --debug
+```
+
+### CI/CD Usage
+
+```bash
+# Disable colors for CI/CD
+devplatform create \
+  --app myapp \
+  --env dev \
+  --no-color \
+  --confirm
+```
+
+## Exit Codes
+
+All commands use consistent exit codes:
+
+| Code Range | Category | Description |
+|------------|----------|-------------|
+| 0 | Success | Command completed successfully |
+| 1 | General Error | Unspecified error occurred |
+| 1000-1099 | Authentication | Credential or permission errors |
+| 1100-1199 | Validation | Input validation errors |
+| 1200-1299 | Terraform | Infrastructure provisioning errors |
+| 1300-1399 | Helm | Application deployment errors |
+| 1400-1499 | Network | Network connectivity errors |
+| 1500-1599 | Configuration | Configuration file errors |
+| 2000-2099 | Azure | Azure-specific errors |
+
+### Example Exit Code Handling
+
+```bash
+#!/bin/bash
+
+devplatform create --app myapp --env dev
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+  echo "Success!"
+elif [ $EXIT_CODE -ge 1000 ] && [ $EXIT_CODE -le 1099 ]; then
+  echo "Authentication error. Check your credentials."
+elif [ $EXIT_CODE -ge 1200 ] && [ $EXIT_CODE -le 1299 ]; then
+  echo "Terraform error. Check the logs."
+else
+  echo "Unknown error: $EXIT_CODE"
+fi
+```
+
+## Output Formats
+
+### Standard Output
+
+By default, commands output human-readable text with colors and progress indicators:
+
+```
+✓ Validating credentials...
+✓ Loading configuration...
+✓ Initializing Terraform...
+✓ Creating VPC (10.0.0.0/16)...
+```
+
+### JSON Output
+
+Some commands support JSON output for programmatic parsing:
+
+```bash
+devplatform status --app myapp --env dev --output json
+```
+
+```json
+{
+  "app_name": "myapp",
+  "environment": "dev",
+  "status": "healthy",
+  "components": {
+    "vpc": {
+      "status": "ok",
+      "id": "vpc-abc123"
+    },
+    "database": {
+      "status": "ok",
+      "endpoint": "myapp-dev.abc123.us-east-1.rds.amazonaws.com"
+    }
+  }
+}
+```
+
+## Environment Variables
+
+DevPlatform CLI respects these environment variables:
+
+<AccordionGroup>
+  <Accordion title="DEVPLATFORM_CONFIG">
+    Path to configuration file (overrides default)
+    
+    ```bash
+    export DEVPLATFORM_CONFIG=/path/to/config.yaml
+    ```
+  </Accordion>
+
+  <Accordion title="DEVPLATFORM_LOG_LEVEL">
+    Set log level: debug, info, warn, error
+    
+    ```bash
+    export DEVPLATFORM_LOG_LEVEL=debug
+    ```
+  </Accordion>
+
+  <Accordion title="DEVPLATFORM_NO_COLOR">
+    Disable colored output
+    
+    ```bash
+    export DEVPLATFORM_NO_COLOR=1
+    ```
+  </Accordion>
+
+  <Accordion title="AWS_* Variables">
+    Standard AWS environment variables are respected:
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - AWS_SESSION_TOKEN
+    - AWS_REGION
+    - AWS_PROFILE
+  </Accordion>
+
+  <Accordion title="AZURE_* Variables">
+    Standard Azure environment variables are respected:
+    - AZURE_SUBSCRIPTION_ID
+    - AZURE_TENANT_ID
+    - AZURE_CLIENT_ID
+    - AZURE_CLIENT_SECRET
+  </Accordion>
+</AccordionGroup>
+
+## Configuration Precedence
+
+Configuration values are resolved in this order (highest to lowest priority):
+
+1. **Command-line flags** (highest priority)
+2. **Environment variables**
+3. **Configuration file** (specified with --config-file)
+4. **Default configuration file** (~/.devplatform/config.yaml)
+5. **Built-in defaults** (lowest priority)
+
+### Example
+
+```bash
+# Config file sets region to us-east-1
+# Environment variable sets region to us-west-2
+export AWS_REGION=us-west-2
+
+# Command-line flag sets region to eu-west-1 (this wins)
+devplatform create --app myapp --env dev --region eu-west-1
+```
+
+## Shell Completion
+
+Enable shell completion for faster command entry:
+
+<Tabs>
+  <Tab title="Bash">
+    ```bash
+    # Add to ~/.bashrc
+    source <(devplatform completion bash)
+    ```
+  </Tab>
+
+  <Tab title="Zsh">
+    ```bash
+    # Add to ~/.zshrc
+    source <(devplatform completion zsh)
+    ```
+  </Tab>
+
+  <Tab title="Fish">
+    ```bash
+    devplatform completion fish | source
+    ```
+  </Tab>
+
+  <Tab title="PowerShell">
+    ```powershell
+    devplatform completion powershell | Out-String | Invoke-Expression
+    ```
+  </Tab>
+</Tabs>
+
+## Getting Help
+
+### Command Help
+
+Get help for any command:
+
+```bash
+devplatform --help
+devplatform create --help
+devplatform status --help
+```
+
+### Man Pages
+
+View detailed man pages (if installed):
+
+```bash
+man devplatform
+man devplatform-create
+```
+
+### Online Documentation
+
+- Full documentation: https://docs.devplatform.io
+- API reference: https://docs.devplatform.io/api-reference
+- GitHub: https://github.com/your-org/devplatform-cli
+
+## Examples
+
+### Complete Workflow
+
+```bash
+# 1. Create environment
+devplatform create --app payment --env dev --provider aws
+
+# 2. Check status
+devplatform status --app payment --env dev
+
+# 3. Update application (re-run create)
+devplatform create --app payment --env dev --values-file updated-values.yaml
+
+# 4. Destroy when done
+devplatform destroy --app payment --env dev --confirm
+```
+
+### Multi-Environment Management
+
+```bash
+# Create dev environment
+devplatform create --app payment --env dev
+
+# Create staging environment
+devplatform create --app payment --env staging
+
+# Create production environment
+devplatform create --app payment --env prod
+
+# Check all environments
+devplatform status --app payment --env dev
+devplatform status --app payment --env staging
+devplatform status --app payment --env prod
+```
+
+### CI/CD Integration
+
+```bash
+#!/bin/bash
+set -e
+
+# Deploy to staging on merge to main
+if [ "$BRANCH" = "main" ]; then
+  devplatform create \
+    --app $APP_NAME \
+    --env staging \
+    --provider aws \
+    --no-color \
+    --timeout 10
+fi
+
+# Deploy to production on tag
+if [ -n "$TAG" ]; then
+  devplatform create \
+    --app $APP_NAME \
+    --env prod \
+    --provider aws \
+    --no-color \
+    --timeout 15
+fi
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Configuration Files">
+    Store common settings in configuration files instead of passing flags every time:
+
+    ```yaml
+    # ~/.devplatform/config.yaml
+    global:
+      cloud_provider: aws
+      timeout: 30
+
+    aws:
+      region: us-east-1
+      profile: default
+    ```
+  </Accordion>
+
+  <Accordion title="Version Control Your Config">
+    Keep configuration files in version control:
+
+    ```bash
+    git add .devplatform/config.yaml
+    git commit -m "Add DevPlatform configuration"
+    ```
+  </Accordion>
+
+  <Accordion title="Use Dry Run">
+    Always test with --dry-run first:
+
+    ```bash
+    devplatform create --app myapp --env prod --dry-run
+    ```
+  </Accordion>
+
+  <Accordion title="Enable Verbose Logging for Debugging">
+    Use --verbose or --debug when troubleshooting:
+
+    ```bash
+    devplatform create --app myapp --env dev --debug
+    ```
+  </Accordion>
+
+  <Accordion title="Automate with Scripts">
+    Create wrapper scripts for common operations:
+
+    ```bash
+    #!/bin/bash
+    # deploy.sh
+    devplatform create \
+      --app $1 \
+      --env $2 \
+      --provider ${CLOUD_PROVIDER:-aws} \
+      --verbose
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="create Command" icon="plus" href="/api-reference/create">
+    Learn about the create command
+  </Card>
+  <Card title="status Command" icon="chart-line" href="/api-reference/status">
+    Learn about the status command
+  </Card>
+  <Card title="destroy Command" icon="trash" href="/api-reference/destroy">
+    Learn about the destroy command
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get started with DevPlatform CLI
+  </Card>
+</CardGroup>

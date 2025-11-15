@@ -1,0 +1,852 @@
+---
+title: 'Audit & Compliance Logging'
+description: 'Enable comprehensive audit logging for security and compliance'
+icon: 'clipboard-check'
+---
+
+DevPlatform CLI provides comprehensive audit logging across cloud infrastructure, Kubernetes, and application layers for security monitoring and compliance.
+
+## Audit Logging Architecture
+
+<Tabs>
+  <Tab title="AWS">
+    ```mermaid
+    graph TB
+        subgraph "Event Sources"
+            CLI[CLI Operations]
+            TF[Terraform Changes]
+            K8s[Kubernetes API]
+            AWS[AWS API Calls]
+            VPC[VPC Traffic]
+        end
+        
+        subgraph "Log Destinations"
+            CloudTrail[CloudTrail]
+            VPCFlow[VPC Flow Logs]
+            K8sAudit[K8s Audit Logs]
+            CLILogs[CLI Logs]
+        end
+        
+        subgraph "Analysis & Storage"
+            S3[S3 Bucket]
+            CloudWatch[CloudWatch Logs]
+            Athena[Amazon Athena]
+            QuickSight[QuickSight]
+        end
+        
+        CLI --> CLILogs
+        TF --> CloudTrail
+        K8s --> K8sAudit
+        AWS --> CloudTrail
+        VPC --> VPCFlow
+        
+        CloudTrail --> S3
+        CloudTrail --> CloudWatch
+        VPCFlow --> S3
+        VPCFlow --> CloudWatch
+        K8sAudit --> CloudWatch
+        CLILogs --> CloudWatch
+        
+        S3 --> Athena
+        CloudWatch --> Athena
+        Athena --> QuickSight
+    ```
+  </Tab>
+  
+  <Tab title="Azure">
+    ```mermaid
+    graph TB
+        subgraph "Event Sources"
+            CLI[CLI Operations]
+            TF[Terraform Changes]
+            K8s[Kubernetes API]
+            Azure[Azure API Calls]
+            NSG[NSG Traffic]
+        end
+        
+        subgraph "Log Destinations"
+            ActivityLog[Activity Log]
+            NSGFlow[NSG Flow Logs]
+            K8sAudit[K8s Audit Logs]
+            CLILogs[CLI Logs]
+        end
+        
+        subgraph "Analysis & Storage"
+            Storage[Storage Account]
+            LogAnalytics[Log Analytics]
+            KQL[Kusto Queries]
+            Workbooks[Azure Workbooks]
+        end
+        
+        CLI --> CLILogs
+        TF --> ActivityLog
+        K8s --> K8sAudit
+        Azure --> ActivityLog
+        NSG --> NSGFlow
+        
+        ActivityLog --> Storage
+        ActivityLog --> LogAnalytics
+        NSGFlow --> Storage
+        NSGFlow --> LogAnalytics
+        K8sAudit --> LogAnalytics
+        CLILogs --> LogAnalytics
+        
+        LogAnalytics --> KQL
+        KQL --> Workbooks
+    ```
+  </Tab>
+</Tabs>
+
+## Cloud API Audit Logging
+
+<Tabs>
+  <Tab title="AWS CloudTrail">
+    ### Enable CloudTrail
+    
+    ```hcl
+    resource "aws_cloudtrail" "main" {
+      name                          = "devplatform-trail"
+      s3_bucket_name                = aws_s3_bucket.cloudtrail.id
+      include_global_service_events = true
+      is_multi_region_trail         = true
+      enable_log_file_validation    = true
+      
+      # Send to CloudWatch Logs
+      cloud_watch_logs_group_arn = "${aws_cloudwatch_log_group.cloudtrail.arn}:*"
+      cloud_watch_logs_role_arn  = aws_iam_role.cloudtrail_cloudwatch.arn
+      
+      event_selector {
+        read_write_type           = "All"
+        include_management_events = true
+        
+        data_resource {
+          type   = "AWS::S3::Object"
+          values = ["${aws_s3_bucket.terraform_state.arn}/"]
+        }
+      }
+      
+      insight_selector {
+        insight_type = "ApiCallRateInsight"
+      }
+      
+      tags = {
+        Name = "devplatform-cloudtrail"
+      }
+    }
+    
+    resource "aws_s3_bucket" "cloudtrail" {
+      bucket = "devplatform-cloudtrail-logs"
+    }
+    
+    resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail" {
+      bucket = aws_s3_bucket.cloudtrail.id
+      
+      rule {
+        id     = "archive-old-logs"
+        status = "Enabled"
+        
+        transition {
+          days          = 90
+          storage_class = "GLACIER"
+        }
+        
+        expiration {
+          days = 365
+        }
+      }
+    }
+    ```
+    
+    ### CloudTrail Event Flow
+    
+    ```mermaid
+    sequenceDiagram
+        participant User as User/Service
+        participant AWS as AWS Service
+        participant CloudTrail as CloudTrail
+        participant S3 as S3 Bucket
+        participant CloudWatch as CloudWatch Logs
+        
+        User->>AWS: API Call
+        AWS->>AWS: Process Request
+        AWS->>CloudTrail: Log Event
+        
+        CloudTrail->>CloudTrail: Enrich Event Data
+        CloudTrail->>S3: Store Event (JSON)
+        CloudTrail->>CloudWatch: Stream Event
+        
+        AWS-->>User: API Response
+        
+        Note over S3: Long-term Storage<br/>Compliance Archive
+        Note over CloudWatch: Real-time Monitoring<br/>Alerting
+    ```
+    
+    ### Query CloudTrail Logs
+    
+    ```bash
+    # Recent events
+    aws cloudtrail lookup-events \
+      --max-results 10
+    
+    # Filter by user
+    aws cloudtrail lookup-events \
+      --lookup-attributes AttributeKey=Username,AttributeValue=admin
+    
+    # Filter by event name
+    aws cloudtrail lookup-events \
+      --lookup-attributes AttributeKey=EventName,AttributeValue=CreateBucket
+    
+    # Filter by resource
+    aws cloudtrail lookup-events \
+      --lookup-attributes AttributeKey=ResourceName,AttributeValue=my-bucket
+    ```
+    
+    ### CloudWatch Insights Queries
+    
+    ```sql
+    # Failed API calls
+    fields @timestamp, userIdentity.principalId, eventName, errorCode, errorMessage
+    | filter errorCode exists
+    | sort @timestamp desc
+    | limit 20
+    
+    # IAM policy changes
+    fields @timestamp, userIdentity.principalId, eventName, requestParameters
+    | filter eventName like /PutUserPolicy|PutRolePolicy|AttachUserPolicy|AttachRolePolicy/
+    | sort @timestamp desc
+    
+    # Security group modifications
+    fields @timestamp, userIdentity.principalId, eventName, requestParameters.groupId
+    | filter eventName like /AuthorizeSecurityGroup|RevokeSecurityGroup/
+    | sort @timestamp desc
+    ```
+  </Tab>
+  
+  <Tab title="Azure Activity Log">
+    ### Enable Activity Log
+    
+    ```hcl
+    resource "azurerm_monitor_diagnostic_setting" "subscription" {
+      name               = "devplatform-activity-log"
+      target_resource_id = data.azurerm_subscription.current.id
+      
+      log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+      storage_account_id         = azurerm_storage_account.logs.id
+      
+      enabled_log {
+        category = "Administrative"
+      }
+      
+      enabled_log {
+        category = "Security"
+      }
+      
+      enabled_log {
+        category = "ServiceHealth"
+      }
+      
+      enabled_log {
+        category = "Alert"
+      }
+      
+      enabled_log {
+        category = "Policy"
+      }
+    }
+    
+    resource "azurerm_log_analytics_workspace" "main" {
+      name                = "devplatform-logs"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      sku                 = "PerGB2018"
+      retention_in_days   = 90
+    }
+    ```
+    
+    ### Query Activity Log
+    
+    ```bash
+    # Recent operations
+    az monitor activity-log list \
+      --max-events 10 \
+      --query "[].{Time:eventTimestamp, User:caller, Operation:operationName.value, Status:status.value}"
+    
+    # Filter by resource group
+    az monitor activity-log list \
+      --resource-group devplatform-rg \
+      --start-time 2024-01-01 \
+      --query "[].{Time:eventTimestamp, Operation:operationName.value}"
+    
+    # Filter by operation
+    az monitor activity-log list \
+      --filters "operationName.value eq 'Microsoft.Network/networkSecurityGroups/write'" \
+      --query "[].{Time:eventTimestamp, User:caller, Resource:resourceId}"
+    ```
+    
+    ### Kusto (KQL) Queries
+    
+    ```kql
+    // Failed operations
+    AzureActivity
+    | where ActivityStatusValue == "Failure"
+    | project TimeGenerated, Caller, OperationNameValue, ActivityStatusValue, Properties
+    | order by TimeGenerated desc
+    | take 20
+    
+    // RBAC changes
+    AzureActivity
+    | where OperationNameValue contains "roleAssignments"
+    | project TimeGenerated, Caller, OperationNameValue, Properties
+    | order by TimeGenerated desc
+    
+    // NSG rule changes
+    AzureActivity
+    | where OperationNameValue contains "networkSecurityGroups"
+    | where OperationNameValue contains "securityRules"
+    | project TimeGenerated, Caller, OperationNameValue, ResourceGroup, Properties
+    | order by TimeGenerated desc
+    ```
+  </Tab>
+</Tabs>
+
+## Network Traffic Logging
+
+<Tabs>
+  <Tab title="AWS VPC Flow Logs">
+    ### Enable VPC Flow Logs
+    
+    ```hcl
+    resource "aws_flow_log" "main" {
+      vpc_id          = aws_vpc.main.id
+      traffic_type    = "ALL"
+      iam_role_arn    = aws_iam_role.flow_logs.arn
+      log_destination = aws_cloudwatch_log_group.flow_logs.arn
+      
+      tags = {
+        Name = "devplatform-flow-logs"
+      }
+    }
+    
+    resource "aws_cloudwatch_log_group" "flow_logs" {
+      name              = "/aws/vpc/devplatform"
+      retention_in_days = 30
+    }
+    
+    resource "aws_iam_role" "flow_logs" {
+      name = "devplatform-flow-logs-role"
+      
+      assume_role_policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [{
+          Action = "sts:AssumeRole"
+          Effect = "Allow"
+          Principal = {
+            Service = "vpc-flow-logs.amazonaws.com"
+          }
+        }]
+      })
+    }
+    ```
+    
+    ### Flow Log Format
+    
+    ```
+    ${version} ${account-id} ${interface-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${start} ${end} ${action} ${log-status}
+    ```
+    
+    Example:
+    ```
+    2 123456789012 eni-abc123 10.0.1.5 10.0.2.10 49152 80 6 10 5000 1620000000 1620000060 ACCEPT OK
+    ```
+    
+    ### Query Flow Logs
+    
+    ```sql
+    # Rejected connections
+    fields @timestamp, srcAddr, dstAddr, dstPort, action
+    | filter action = "REJECT"
+    | sort @timestamp desc
+    | limit 20
+    
+    # Top talkers
+    stats sum(bytes) as totalBytes by srcAddr
+    | sort totalBytes desc
+    | limit 10
+    
+    # Connections to specific port
+    fields @timestamp, srcAddr, dstAddr, dstPort
+    | filter dstPort = 22
+    | sort @timestamp desc
+    ```
+  </Tab>
+  
+  <Tab title="Azure NSG Flow Logs">
+    ### Enable NSG Flow Logs
+    
+    ```hcl
+    resource "azurerm_network_watcher_flow_log" "main" {
+      network_watcher_name = azurerm_network_watcher.main.name
+      resource_group_name  = azurerm_resource_group.main.name
+      
+      network_security_group_id = azurerm_network_security_group.main.id
+      storage_account_id        = azurerm_storage_account.logs.id
+      enabled                   = true
+      
+      retention_policy {
+        enabled = true
+        days    = 30
+      }
+      
+      traffic_analytics {
+        enabled               = true
+        workspace_id          = azurerm_log_analytics_workspace.main.workspace_id
+        workspace_region      = azurerm_log_analytics_workspace.main.location
+        workspace_resource_id = azurerm_log_analytics_workspace.main.id
+        interval_in_minutes   = 10
+      }
+    }
+    ```
+    
+    ### Flow Log Format
+    
+    ```json
+    {
+      "time": "2024-01-01T12:00:00.0000000Z",
+      "systemId": "abc123",
+      "macAddress": "00:0D:3A:12:34:56",
+      "category": "NetworkSecurityGroupFlowEvent",
+      "resourceId": "/subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.Network/networkSecurityGroups/{nsg}",
+      "operationName": "NetworkSecurityGroupFlowEvents",
+      "properties": {
+        "flows": [{
+          "rule": "DefaultRule_AllowInternetOutBound",
+          "flows": [{
+            "mac": "00:0D:3A:12:34:56",
+            "flowTuples": [
+              "1620000000,10.0.1.5,13.107.21.200,49152,443,T,O,A,B"
+            ]
+          }]
+        }]
+      }
+    }
+    ```
+    
+    ### Query Flow Logs
+    
+    ```kql
+    // Denied connections
+    AzureNetworkAnalytics_CL
+    | where FlowStatus_s == "D"
+    | project TimeGenerated, SrcIP_s, DestIP_s, DestPort_d, NSGRule_s
+    | order by TimeGenerated desc
+    | take 20
+    
+    // Top source IPs
+    AzureNetworkAnalytics_CL
+    | summarize TotalBytes = sum(BytesSent_d) by SrcIP_s
+    | order by TotalBytes desc
+    | take 10
+    
+    // SSH connections
+    AzureNetworkAnalytics_CL
+    | where DestPort_d == 22
+    | project TimeGenerated, SrcIP_s, DestIP_s, FlowStatus_s
+    | order by TimeGenerated desc
+    ```
+  </Tab>
+</Tabs>
+
+## Kubernetes Audit Logging
+
+<Tabs>
+  <Tab title="AWS EKS">
+    ### Enable EKS Audit Logs
+    
+    ```hcl
+    resource "aws_eks_cluster" "main" {
+      name     = "devplatform-eks"
+      role_arn = aws_iam_role.eks_cluster.arn
+      
+      enabled_cluster_log_types = [
+        "api",
+        "audit",
+        "authenticator",
+        "controllerManager",
+        "scheduler"
+      ]
+      
+      # Other configuration...
+    }
+    
+    resource "aws_cloudwatch_log_group" "eks" {
+      name              = "/aws/eks/devplatform-eks/cluster"
+      retention_in_days = 30
+    }
+    ```
+    
+    ### Audit Log Events
+    
+    ```json
+    {
+      "kind": "Event",
+      "apiVersion": "audit.k8s.io/v1",
+      "level": "Metadata",
+      "auditID": "abc123",
+      "stage": "ResponseComplete",
+      "requestURI": "/api/v1/namespaces/default/pods",
+      "verb": "create",
+      "user": {
+        "username": "john.doe",
+        "groups": ["developers", "system:authenticated"]
+      },
+      "sourceIPs": ["1.2.3.4"],
+      "userAgent": "kubectl/v1.28.0",
+      "objectRef": {
+        "resource": "pods",
+        "namespace": "default",
+        "name": "my-app",
+        "apiVersion": "v1"
+      },
+      "responseStatus": {
+        "code": 201
+      }
+    }
+    ```
+    
+    ### Query Audit Logs
+    
+    ```sql
+    # Failed API calls
+    fields @timestamp, user.username, verb, objectRef.resource, responseStatus.code
+    | filter responseStatus.code >= 400
+    | sort @timestamp desc
+    | limit 20
+    
+    # Pod deletions
+    fields @timestamp, user.username, objectRef.namespace, objectRef.name
+    | filter verb = "delete" and objectRef.resource = "pods"
+    | sort @timestamp desc
+    
+    # Secret access
+    fields @timestamp, user.username, verb, objectRef.namespace, objectRef.name
+    | filter objectRef.resource = "secrets"
+    | sort @timestamp desc
+    ```
+  </Tab>
+  
+  <Tab title="Azure AKS">
+    ### Enable AKS Diagnostic Settings
+    
+    ```hcl
+    resource "azurerm_monitor_diagnostic_setting" "aks" {
+      name               = "devplatform-aks-logs"
+      target_resource_id = azurerm_kubernetes_cluster.main.id
+      
+      log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+      
+      enabled_log {
+        category = "kube-apiserver"
+      }
+      
+      enabled_log {
+        category = "kube-audit"
+      }
+      
+      enabled_log {
+        category = "kube-audit-admin"
+      }
+      
+      enabled_log {
+        category = "kube-controller-manager"
+      }
+      
+      enabled_log {
+        category = "kube-scheduler"
+      }
+      
+      enabled_log {
+        category = "cluster-autoscaler"
+      }
+      
+      metric {
+        category = "AllMetrics"
+        enabled  = true
+      }
+    }
+    ```
+    
+    ### Query Audit Logs
+    
+    ```kql
+    // Failed API calls
+    AzureDiagnostics
+    | where Category == "kube-audit"
+    | where responseStatus_code_d >= 400
+    | project TimeGenerated, user_username_s, verb_s, objectRef_resource_s, responseStatus_code_d
+    | order by TimeGenerated desc
+    | take 20
+    
+    // Pod deletions
+    AzureDiagnostics
+    | where Category == "kube-audit"
+    | where verb_s == "delete" and objectRef_resource_s == "pods"
+    | project TimeGenerated, user_username_s, objectRef_namespace_s, objectRef_name_s
+    | order by TimeGenerated desc
+    
+    // Secret access
+    AzureDiagnostics
+    | where Category == "kube-audit"
+    | where objectRef_resource_s == "secrets"
+    | project TimeGenerated, user_username_s, verb_s, objectRef_namespace_s, objectRef_name_s
+    | order by TimeGenerated desc
+    ```
+  </Tab>
+</Tabs>
+
+## Security Monitoring and Alerting
+
+<Tabs>
+  <Tab title="AWS CloudWatch Alarms">
+    ### Create Security Alarms
+    
+    ```hcl
+    # Unauthorized API calls
+    resource "aws_cloudwatch_log_metric_filter" "unauthorized_api_calls" {
+      name           = "UnauthorizedAPICalls"
+      log_group_name = aws_cloudwatch_log_group.cloudtrail.name
+      
+      pattern = "{ ($.errorCode = \"*UnauthorizedOperation\") || ($.errorCode = \"AccessDenied*\") }"
+      
+      metric_transformation {
+        name      = "UnauthorizedAPICalls"
+        namespace = "CloudTrailMetrics"
+        value     = "1"
+      }
+    }
+    
+    resource "aws_cloudwatch_metric_alarm" "unauthorized_api_calls" {
+      alarm_name          = "UnauthorizedAPICalls"
+      comparison_operator = "GreaterThanThreshold"
+      evaluation_periods  = "1"
+      metric_name         = "UnauthorizedAPICalls"
+      namespace           = "CloudTrailMetrics"
+      period              = "300"
+      statistic           = "Sum"
+      threshold           = "5"
+      alarm_description   = "Triggers when unauthorized API calls exceed threshold"
+      alarm_actions       = [aws_sns_topic.security_alerts.arn]
+    }
+    
+    # IAM policy changes
+    resource "aws_cloudwatch_log_metric_filter" "iam_policy_changes" {
+      name           = "IAMPolicyChanges"
+      log_group_name = aws_cloudwatch_log_group.cloudtrail.name
+      
+      pattern = "{ ($.eventName = PutUserPolicy) || ($.eventName = PutRolePolicy) || ($.eventName = AttachUserPolicy) || ($.eventName = AttachRolePolicy) }"
+      
+      metric_transformation {
+        name      = "IAMPolicyChanges"
+        namespace = "CloudTrailMetrics"
+        value     = "1"
+      }
+    }
+    
+    # Root account usage
+    resource "aws_cloudwatch_log_metric_filter" "root_account_usage" {
+      name           = "RootAccountUsage"
+      log_group_name = aws_cloudwatch_log_group.cloudtrail.name
+      
+      pattern = "{ $.userIdentity.type = \"Root\" && $.userIdentity.invokedBy NOT EXISTS && $.eventType != \"AwsServiceEvent\" }"
+      
+      metric_transformation {
+        name      = "RootAccountUsage"
+        namespace = "CloudTrailMetrics"
+        value     = "1"
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Azure Monitor Alerts">
+    ### Create Security Alerts
+    
+    ```hcl
+    # Unauthorized operations
+    resource "azurerm_monitor_scheduled_query_rules_alert_v2" "unauthorized_ops" {
+      name                = "UnauthorizedOperations"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      
+      evaluation_frequency = "PT5M"
+      window_duration      = "PT5M"
+      scopes               = [azurerm_log_analytics_workspace.main.id]
+      severity             = 2
+      
+      criteria {
+        query                   = <<-QUERY
+          AzureActivity
+          | where ActivityStatusValue == "Failure"
+          | where OperationNameValue contains "Microsoft.Authorization"
+          | summarize Count = count() by Caller
+          | where Count > 5
+        QUERY
+        time_aggregation_method = "Count"
+        threshold               = 0
+        operator                = "GreaterThan"
+      }
+      
+      action {
+        action_groups = [azurerm_monitor_action_group.security.id]
+      }
+    }
+    
+    # RBAC changes
+    resource "azurerm_monitor_scheduled_query_rules_alert_v2" "rbac_changes" {
+      name                = "RBACChanges"
+      resource_group_name = azurerm_resource_group.main.name
+      location            = azurerm_resource_group.main.location
+      
+      evaluation_frequency = "PT5M"
+      window_duration      = "PT5M"
+      scopes               = [azurerm_log_analytics_workspace.main.id]
+      severity             = 2
+      
+      criteria {
+        query                   = <<-QUERY
+          AzureActivity
+          | where OperationNameValue contains "roleAssignments"
+          | project TimeGenerated, Caller, OperationNameValue, Properties
+        QUERY
+        time_aggregation_method = "Count"
+        threshold               = 0
+        operator                = "GreaterThan"
+      }
+      
+      action {
+        action_groups = [azurerm_monitor_action_group.security.id]
+      }
+    }
+    
+    resource "azurerm_monitor_action_group" "security" {
+      name                = "security-alerts"
+      resource_group_name = azurerm_resource_group.main.name
+      short_name          = "security"
+      
+      email_receiver {
+        name          = "security-team"
+        email_address = "security@example.com"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Compliance Reporting
+
+<AccordionGroup>
+  <Accordion title="Generate Compliance Reports">
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        # Export CloudTrail logs
+        aws s3 sync s3://devplatform-cloudtrail-logs/ ./audit-logs/
+        
+        # Query with Athena
+        aws athena start-query-execution \
+          --query-string "SELECT * FROM cloudtrail_logs WHERE eventtime >= '2024-01-01'" \
+          --result-configuration OutputLocation=s3://query-results/
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```bash
+        # Export Activity Log
+        az monitor activity-log list \
+          --start-time 2024-01-01 \
+          --output json > activity-log.json
+        
+        # Export from Log Analytics
+        az monitor log-analytics query \
+          --workspace {workspace-id} \
+          --analytics-query "AzureActivity | where TimeGenerated >= datetime(2024-01-01)" \
+          --output json > compliance-report.json
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+  
+  <Accordion title="Audit Log Retention">
+    Configure retention policies for compliance:
+    
+    | Compliance Standard | Minimum Retention |
+    |---------------------|-------------------|
+    | SOC 2 | 1 year |
+    | PCI DSS | 1 year (3 months online) |
+    | HIPAA | 6 years |
+    | GDPR | Varies by data type |
+    | ISO 27001 | 1 year |
+  </Accordion>
+  
+  <Accordion title="Log Integrity Verification">
+    <Tabs>
+      <Tab title="AWS">
+        CloudTrail log file validation:
+        
+        ```bash
+        # Validate log files
+        aws cloudtrail validate-logs \
+          --trail-arn arn:aws:cloudtrail:us-east-1:123456789012:trail/devplatform-trail \
+          --start-time 2024-01-01T00:00:00Z \
+          --end-time 2024-01-31T23:59:59Z
+        ```
+      </Tab>
+      <Tab title="Azure">
+        Activity Log immutability:
+        
+        ```hcl
+        resource "azurerm_storage_account" "logs" {
+          # Enable immutability
+          immutability_policy {
+            allow_protected_append_writes = false
+            state                          = "Locked"
+            period_since_creation_in_days  = 365
+          }
+        }
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Enable All Log Types" icon="list-check">
+    Enable CloudTrail/Activity Log, VPC/NSG Flow Logs, and Kubernetes audit logs
+  </Card>
+  <Card title="Centralize Logs" icon="database">
+    Send all logs to centralized storage (CloudWatch/Log Analytics)
+  </Card>
+  <Card title="Set Retention Policies" icon="clock">
+    Configure retention based on compliance requirements
+  </Card>
+  <Card title="Monitor in Real-Time" icon="bell">
+    Create alerts for security events and anomalies
+  </Card>
+  <Card title="Regular Reviews" icon="magnifying-glass">
+    Periodically review logs for suspicious activity
+  </Card>
+  <Card title="Protect Log Data" icon="shield">
+    Encrypt logs and restrict access to security team
+  </Card>
+</CardGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Security Overview" icon="shield-halved" href="/security/overview">
+    Comprehensive security architecture
+  </Card>
+  <Card title="Authentication" icon="key" href="/security/authentication">
+    Configure authentication and access control
+  </Card>
+</CardGroup>

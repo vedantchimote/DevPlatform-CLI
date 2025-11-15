@@ -1,0 +1,478 @@
+---
+title: 'Helm Customization'
+description: 'Customize Helm charts for advanced deployment scenarios'
+icon: 'ship'
+---
+
+Learn how to customize Helm charts to meet specific application requirements.
+
+## Helm Chart Structure
+
+DevPlatform CLI uses a base Helm chart that can be customized:
+
+```
+charts/
+└── devplatform-base/
+    ├── Chart.yaml
+    ├── values.yaml
+    ├── templates/
+    │   ├── deployment.yaml
+    │   ├── service.yaml
+    │   ├── ingress.yaml
+    │   ├── configmap.yaml
+    │   ├── secret.yaml
+    │   ├── serviceaccount.yaml
+    │   ├── hpa.yaml
+    │   └── _helpers.tpl
+    └── values/
+        ├── values-dev.yaml
+        ├── values-staging.yaml
+        └── values-prod.yaml
+```
+
+## Customizing Values
+
+<Tabs>
+  <Tab title="Basic Customization">
+    ```yaml
+    # values-custom.yaml
+    image:
+      repository: myapp
+      tag: v1.2.0
+      pullPolicy: IfNotPresent
+    
+    replicas: 3
+    
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    
+    env:
+      - name: LOG_LEVEL
+        value: "info"
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: db-credentials
+            key: url
+    
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8080
+    
+    ingress:
+      enabled: true
+      className: nginx
+      hosts:
+        - host: myapp.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: myapp-tls
+          hosts:
+            - myapp.example.com
+    ```
+  </Tab>
+  
+  <Tab title="Advanced Customization">
+    ```yaml
+    # values-advanced.yaml
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+    
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - myapp
+              topologyKey: kubernetes.io/hostname
+    
+    tolerations:
+      - key: "workload"
+        operator: "Equal"
+        value: "application"
+        effect: "NoSchedule"
+    
+    nodeSelector:
+      workload-type: application
+    
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+    ```
+  </Tab>
+</Tabs>
+
+## Custom Templates
+
+### Adding Sidecars
+
+```yaml
+# templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "devplatform-base.fullname" . }}
+spec:
+  template:
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        # Main container config...
+      
+      {{- if .Values.sidecars }}
+      {{- range .Values.sidecars }}
+      - name: {{ .name }}
+        image: {{ .image }}
+        {{- if .command }}
+        command: {{ .command }}
+        {{- end }}
+        {{- if .env }}
+        env:
+        {{- toYaml .env | nindent 8 }}
+        {{- end }}
+        {{- if .resources }}
+        resources:
+        {{- toYaml .resources | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+```
+
+Use in values:
+
+```yaml
+sidecars:
+  - name: log-forwarder
+    image: fluent/fluent-bit:latest
+    env:
+      - name: FLUENT_ELASTICSEARCH_HOST
+        value: "elasticsearch.logging.svc"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+```
+
+### Adding Init Containers
+
+```yaml
+# templates/deployment.yaml
+spec:
+  template:
+    spec:
+      {{- if .Values.initContainers }}
+      initContainers:
+      {{- range .Values.initContainers }}
+      - name: {{ .name }}
+        image: {{ .image }}
+        command: {{ .command }}
+        {{- if .env }}
+        env:
+        {{- toYaml .env | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      
+      containers:
+      # Main containers...
+```
+
+Use in values:
+
+```yaml
+initContainers:
+  - name: wait-for-db
+    image: busybox:latest
+    command:
+      - sh
+      - -c
+      - |
+        until nc -z mydb.example.com 5432; do
+          echo "Waiting for database..."
+          sleep 2
+        done
+```
+
+## Multi-Container Patterns
+
+<Tabs>
+  <Tab title="Ambassador Pattern">
+    ```yaml
+    # Proxy sidecar for external service
+    sidecars:
+      - name: ambassador
+        image: envoyproxy/envoy:v1.28
+        ports:
+          - containerPort: 8080
+        volumeMounts:
+          - name: envoy-config
+            mountPath: /etc/envoy
+    
+    volumes:
+      - name: envoy-config
+        configMap:
+          name: envoy-config
+    ```
+  </Tab>
+  
+  <Tab title="Adapter Pattern">
+    ```yaml
+    # Transform data format
+    sidecars:
+      - name: metrics-adapter
+        image: prom/statsd-exporter:latest
+        ports:
+          - containerPort: 9102
+        args:
+          - --statsd.mapping-config=/etc/statsd/mapping.yml
+    ```
+  </Tab>
+  
+  <Tab title="Sidecar Pattern">
+    ```yaml
+    # Log aggregation sidecar
+    sidecars:
+      - name: log-aggregator
+        image: fluent/fluent-bit:latest
+        volumeMounts:
+          - name: app-logs
+            mountPath: /var/log/app
+    
+    volumes:
+      - name: app-logs
+        emptyDir: {}
+    ```
+  </Tab>
+</Tabs>
+
+## Advanced Deployment Strategies
+
+<Tabs>
+  <Tab title="Canary Deployment">
+    ```yaml
+    # Stable deployment
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: myapp-stable
+    spec:
+      replicas: 9
+      template:
+        metadata:
+          labels:
+            app: myapp
+            version: stable
+        spec:
+          containers:
+          - name: myapp
+            image: myapp:v1.0.0
+    ---
+    # Canary deployment
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: myapp-canary
+    spec:
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: myapp
+            version: canary
+        spec:
+          containers:
+          - name: myapp
+            image: myapp:v1.1.0
+    ---
+    # Service routes to both
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: myapp
+    spec:
+      selector:
+        app: myapp  # Matches both stable and canary
+      ports:
+        - port: 80
+          targetPort: 8080
+    ```
+  </Tab>
+  
+  <Tab title="Blue-Green Deployment">
+    ```yaml
+    # Blue deployment
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: myapp-blue
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: myapp
+          color: blue
+      template:
+        metadata:
+          labels:
+            app: myapp
+            color: blue
+        spec:
+          containers:
+          - name: myapp
+            image: myapp:v1.0.0
+    ---
+    # Green deployment
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: myapp-green
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+            app: myapp
+            color: green
+      template:
+        metadata:
+          labels:
+            app: myapp
+            color: green
+        spec:
+          containers:
+          - name: myapp
+            image: myapp:v1.1.0
+    ---
+    # Service points to active color
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: myapp
+    spec:
+      selector:
+        app: myapp
+        color: blue  # Switch to green when ready
+      ports:
+        - port: 80
+          targetPort: 8080
+    ```
+  </Tab>
+</Tabs>
+
+## Custom Hooks
+
+```yaml
+# templates/hooks/pre-install-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "devplatform-base.fullname" . }}-pre-install
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: pre-install
+        image: {{ .Values.hooks.preInstall.image }}
+        command: {{ .Values.hooks.preInstall.command }}
+```
+
+Use in values:
+
+```yaml
+hooks:
+  preInstall:
+    image: myapp-migrations:latest
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Running database migrations..."
+        npm run migrate
+```
+
+## Testing Customizations
+
+<Steps>
+  <Step title="Lint Chart">
+    ```bash
+    helm lint ./charts/devplatform-base
+    ```
+  </Step>
+  
+  <Step title="Dry Run">
+    ```bash
+    helm install myapp ./charts/devplatform-base \
+      --values values-custom.yaml \
+      --dry-run \
+      --debug
+    ```
+  </Step>
+  
+  <Step title="Template Output">
+    ```bash
+    helm template myapp ./charts/devplatform-base \
+      --values values-custom.yaml \
+      > rendered-manifests.yaml
+    ```
+  </Step>
+  
+  <Step title="Deploy to Dev">
+    ```bash
+    devplatform update \
+      --app myapp \
+      --env dev \
+      --values-file values-custom.yaml
+    ```
+  </Step>
+</Steps>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Custom Modules" icon="puzzle-piece" href="/advanced/custom-modules">
+    Create custom Terraform modules
+  </Card>
+  <Card title="CI/CD Integration" icon="code-branch" href="/advanced/ci-cd-integration">
+    Automate deployments
+  </Card>
+</CardGroup>

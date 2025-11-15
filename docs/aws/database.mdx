@@ -1,0 +1,834 @@
+---
+title: 'AWS Database (RDS)'
+description: 'RDS PostgreSQL configuration, sizing, backups, and management for DevPlatform CLI deployments'
+icon: 'database'
+---
+
+DevPlatform CLI provisions Amazon RDS PostgreSQL instances with automated backups, encryption, and environment-specific configurations.
+
+## Overview
+
+Each environment gets a dedicated RDS instance sized appropriately for the workload, with automatic backups, encryption at rest, and secure network configuration.
+
+<CardGroup cols={3}>
+  <Card title="Instance Configuration" icon="server" href="#instance-configuration">
+    Instance classes and storage options
+  </Card>
+  <Card title="Security" icon="lock" href="#database-security">
+    Encryption, authentication, and network isolation
+  </Card>
+  <Card title="Backups" icon="clock-rotate-left" href="#backup-and-recovery">
+    Automated backups and point-in-time recovery
+  </Card>
+</CardGroup>
+
+## Instance Configuration
+
+### Instance Sizing by Environment
+
+<Tabs>
+  <Tab title="Development">
+**Instance Class:** `db.t3.micro`
+
+**Specifications:**
+- vCPUs: 2
+- RAM: 1 GB
+- Network: Up to 5 Gbps (burstable)
+- Storage: 20 GB GP2
+
+**Configuration:**
+```hcl
+resource "aws_db_instance" "main" {
+  identifier     = "myapp-dev"
+  engine         = "postgres"
+  engine_version = "15.3"
+  
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
+  storage_type      = "gp2"
+  storage_encrypted = true
+  
+  db_name  = "myapp"
+  username = "admin"
+  password = random_password.db_password.result
+  
+  multi_az               = false
+  publicly_accessible    = false
+  backup_retention_period = 7
+  
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  
+  skip_final_snapshot = true
+  
+  tags = {
+    Name        = "myapp-dev"
+    Environment = "dev"
+  }
+}
+```
+
+**Monthly Cost:** ~$35
+  </Tab>
+  <Tab title="Staging">
+**Instance Class:** `db.t3.medium`
+
+**Specifications:**
+- vCPUs: 2
+- RAM: 4 GB
+- Network: Up to 5 Gbps (burstable)
+- Storage: 100 GB GP2
+
+**Configuration:**
+```hcl
+resource "aws_db_instance" "main" {
+  identifier     = "myapp-staging"
+  engine         = "postgres"
+  engine_version = "15.3"
+  
+  instance_class    = "db.t3.medium"
+  allocated_storage = 100
+  storage_type      = "gp2"
+  storage_encrypted = true
+  kms_key_id        = aws_kms_key.rds.arn
+  
+  db_name  = "myapp"
+  username = "admin"
+  password = random_password.db_password.result
+  
+  multi_az               = false
+  publicly_accessible    = false
+  backup_retention_period = 14
+  backup_window          = "03:00-04:00"
+  maintenance_window     = "sun:04:00-sun:05:00"
+  
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  performance_insights_enabled    = true
+  
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  
+  final_snapshot_identifier = "myapp-staging-final-snapshot"
+  
+  tags = {
+    Name        = "myapp-staging"
+    Environment = "staging"
+  }
+}
+```
+
+**Monthly Cost:** ~$120
+  </Tab>
+  <Tab title="Production">
+**Instance Class:** `db.r5.large`
+
+**Specifications:**
+- vCPUs: 2
+- RAM: 16 GB
+- Network: Up to 10 Gbps
+- Storage: 500 GB GP3 (12,000 IOPS)
+
+**Configuration:**
+```hcl
+resource "aws_db_instance" "main" {
+  identifier     = "myapp-prod"
+  engine         = "postgres"
+  engine_version = "15.3"
+  
+  instance_class    = "db.r5.large"
+  allocated_storage = 500
+  storage_type      = "gp3"
+  iops              = 12000
+  storage_encrypted = true
+  kms_key_id        = aws_kms_key.rds.arn
+  
+  db_name  = "myapp"
+  username = "admin"
+  password = random_password.db_password.result
+  
+  multi_az               = true  # High availability
+  publicly_accessible    = false
+  backup_retention_period = 30
+  backup_window          = "03:00-04:00"
+  maintenance_window     = "sun:04:00-sun:05:00"
+  
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  performance_insights_enabled    = true
+  performance_insights_retention_period = 7
+  
+  deletion_protection = true
+  
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  
+  final_snapshot_identifier = "myapp-prod-final-snapshot"
+  
+  tags = {
+    Name        = "myapp-prod"
+    Environment = "prod"
+  }
+}
+
+# Read replica for scaling reads
+resource "aws_db_instance" "replica" {
+  identifier     = "myapp-prod-replica"
+  replicate_source_db = aws_db_instance.main.identifier
+  
+  instance_class = "db.r5.large"
+  
+  publicly_accessible = false
+  
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  
+  tags = {
+    Name        = "myapp-prod-replica"
+    Environment = "prod"
+  }
+}
+```
+
+**Monthly Cost:** ~$450 (primary) + ~$450 (replica) = ~$900
+  </Tab>
+</Tabs>
+
+### Storage Options
+
+| Storage Type | Use Case | IOPS | Throughput | Cost |
+|--------------|----------|------|------------|------|
+| GP2 (General Purpose SSD) | Dev/Staging | 3 IOPS/GB (baseline) | 250 MB/s | $0.115/GB-month |
+| GP3 (General Purpose SSD) | Production | 3,000-16,000 (configurable) | 125-1,000 MB/s | $0.08/GB-month |
+| IO1 (Provisioned IOPS) | High-performance | Up to 64,000 | 1,000 MB/s | $0.125/GB-month + $0.10/IOPS |
+
+<Note>
+GP3 is recommended for production workloads as it offers better performance at lower cost than GP2.
+</Note>
+
+## Database Security
+
+### Network Isolation
+
+RDS instances are deployed in private database subnets with no internet access.
+
+```mermaid
+graph TB
+    subgraph "VPC: 10.0.0.0/16"
+        subgraph "Private Subnet"
+            Pod[Application Pod<br/>10.0.11.5]
+        end
+        
+        subgraph "Database Subnet"
+            RDS[(RDS Instance<br/>10.0.21.10)]
+        end
+        
+        SG1[EKS Nodes SG]
+        SG2[RDS SG]
+    end
+    
+    Internet([Internet]) -.->|No Access| RDS
+    
+    Pod -->|Port 5432| RDS
+    Pod -.->|Protected by| SG1
+    RDS -.->|Protected by| SG2
+    
+    SG2 -.->|Allows from| SG1
+    
+    style RDS fill:#527FFF
+    style Internet fill:#ff0000,stroke:#ff0000
+```
+
+### Encryption at Rest
+
+All RDS instances use encryption at rest with AWS KMS.
+
+```hcl
+# Create KMS key for RDS encryption
+resource "aws_kms_key" "rds" {
+  description             = "KMS key for RDS encryption"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+  
+  tags = {
+    Name = "myapp-rds-key"
+  }
+}
+
+resource "aws_kms_alias" "rds" {
+  name          = "alias/myapp-rds"
+  target_key_id = aws_kms_key.rds.key_id
+}
+
+# Use KMS key in RDS instance
+resource "aws_db_instance" "main" {
+  # ... other configuration ...
+  
+  storage_encrypted = true
+  kms_key_id        = aws_kms_key.rds.arn
+}
+```
+
+**Encryption Details:**
+- Algorithm: AES-256
+- Key rotation: Automatic (yearly)
+- Encrypted: Data, automated backups, snapshots, read replicas
+
+### Encryption in Transit
+
+All connections to RDS use TLS encryption.
+
+```hcl
+# RDS parameter group enforcing SSL
+resource "aws_db_parameter_group" "main" {
+  name   = "myapp-postgres15"
+  family = "postgres15"
+  
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
+  
+  parameter {
+    name  = "log_connections"
+    value = "1"
+  }
+  
+  parameter {
+    name  = "log_disconnections"
+    value = "1"
+  }
+  
+  tags = {
+    Name = "myapp-postgres15"
+  }
+}
+
+resource "aws_db_instance" "main" {
+  # ... other configuration ...
+  
+  parameter_group_name = aws_db_parameter_group.main.name
+}
+```
+
+**Application Connection String:**
+```bash
+postgresql://admin:password@myapp-prod.abc123.us-east-1.rds.amazonaws.com:5432/myapp?sslmode=require
+```
+
+### Password Management
+
+Database passwords are generated and stored securely in AWS Secrets Manager.
+
+```hcl
+# Generate random password
+resource "random_password" "db_password" {
+  length  = 32
+  special = true
+}
+
+# Store in Secrets Manager
+resource "aws_secretsmanager_secret" "db_password" {
+  name = "myapp-dev-db-password"
+  
+  tags = {
+    Name = "myapp-dev-db-password"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "db_password" {
+  secret_id     = aws_secretsmanager_secret.db_password.id
+  secret_string = jsonencode({
+    username = aws_db_instance.main.username
+    password = random_password.db_password.result
+    engine   = "postgres"
+    host     = aws_db_instance.main.endpoint
+    port     = 5432
+    dbname   = aws_db_instance.main.db_name
+  })
+}
+```
+
+**Retrieve Password from Application:**
+```python
+import boto3
+import json
+
+# Get secret from Secrets Manager
+client = boto3.client('secretsmanager')
+response = client.get_secret_value(SecretId='myapp-dev-db-password')
+secret = json.loads(response['SecretString'])
+
+# Connect to database
+connection_string = f"postgresql://{secret['username']}:{secret['password']}@{secret['host']}:{secret['port']}/{secret['dbname']}"
+```
+
+## Backup and Recovery
+
+### Automated Backups
+
+RDS automatically creates daily backups during the backup window.
+
+```hcl
+resource "aws_db_instance" "main" {
+  # ... other configuration ...
+  
+  backup_retention_period = 30  # Keep backups for 30 days
+  backup_window          = "03:00-04:00"  # UTC
+  
+  # Enable automated backups to S3
+  backup_target = "region"
+}
+```
+
+**Backup Schedule:**
+
+| Environment | Retention Period | Backup Window | Cost |
+|-------------|------------------|---------------|------|
+| Dev | 7 days | 03:00-04:00 UTC | Included |
+| Staging | 14 days | 03:00-04:00 UTC | Included |
+| Prod | 30 days | 03:00-04:00 UTC | Included |
+
+### Manual Snapshots
+
+Create manual snapshots before major changes.
+
+```bash
+# Create manual snapshot
+aws rds create-db-snapshot \
+  --db-instance-identifier myapp-prod \
+  --db-snapshot-identifier myapp-prod-before-migration-2024-01-15
+
+# List snapshots
+aws rds describe-db-snapshots \
+  --db-instance-identifier myapp-prod
+
+# Delete old snapshot
+aws rds delete-db-snapshot \
+  --db-snapshot-identifier myapp-prod-old-snapshot
+```
+
+### Point-in-Time Recovery
+
+Restore database to any point within the retention period.
+
+```bash
+# Restore to specific time
+aws rds restore-db-instance-to-point-in-time \
+  --source-db-instance-identifier myapp-prod \
+  --target-db-instance-identifier myapp-prod-restored \
+  --restore-time 2024-01-15T10:30:00Z
+
+# Restore to latest restorable time
+aws rds restore-db-instance-to-point-in-time \
+  --source-db-instance-identifier myapp-prod \
+  --target-db-instance-identifier myapp-prod-restored \
+  --use-latest-restorable-time
+```
+
+### Restore from Snapshot
+
+```bash
+# Restore from automated backup
+aws rds restore-db-instance-from-db-snapshot \
+  --db-instance-identifier myapp-prod-restored \
+  --db-snapshot-identifier rds:myapp-prod-2024-01-15-03-00 \
+  --db-instance-class db.r5.large \
+  --vpc-security-group-ids sg-xxx \
+  --db-subnet-group-name myapp-prod-db-subnet-group
+
+# Wait for restore to complete
+aws rds wait db-instance-available \
+  --db-instance-identifier myapp-prod-restored
+
+# Update application to use restored instance
+kubectl set env deployment/myapp -n myapp-prod \
+  DATABASE_HOST=myapp-prod-restored.abc123.us-east-1.rds.amazonaws.com
+```
+
+## High Availability
+
+### Multi-AZ Deployment
+
+Production instances use Multi-AZ for automatic failover.
+
+```mermaid
+graph TB
+    subgraph "Availability Zone A"
+        Primary[(RDS Primary<br/>10.0.21.10)]
+        AppA[Application Pods]
+    end
+    
+    subgraph "Availability Zone B"
+        Standby[(RDS Standby<br/>10.0.22.10)]
+        AppB[Application Pods]
+    end
+    
+    AppA -->|Read/Write| Primary
+    AppB -->|Read/Write| Primary
+    
+    Primary -.->|Synchronous Replication| Standby
+    
+    Primary -.->|Health Checks| RDS[RDS Service]
+    RDS -.->|Automatic Failover| Standby
+    
+    style Primary fill:#527FFF
+    style Standby fill:#527FFF
+```
+
+**Failover Process:**
+
+<Steps>
+  <Step title="Failure Detection">
+    RDS detects primary instance failure through health checks (30-60 seconds)
+  </Step>
+  <Step title="Automatic Failover">
+    RDS promotes standby to primary and updates DNS record (60-120 seconds)
+  </Step>
+  <Step title="Application Reconnection">
+    Applications reconnect automatically using the same endpoint
+  </Step>
+  <Step title="New Standby Creation">
+    RDS creates a new standby instance in another AZ
+  </Step>
+</Steps>
+
+**Total Failover Time:** 1-2 minutes
+
+### Read Replicas
+
+Scale read operations with read replicas.
+
+```hcl
+resource "aws_db_instance" "replica" {
+  identifier          = "myapp-prod-replica-1"
+  replicate_source_db = aws_db_instance.main.identifier
+  
+  instance_class = "db.r5.large"
+  
+  publicly_accessible = false
+  
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  
+  tags = {
+    Name = "myapp-prod-replica-1"
+    Role = "read-replica"
+  }
+}
+```
+
+**Application Configuration:**
+```yaml
+# ConfigMap with read/write split
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-config
+data:
+  DATABASE_WRITE_HOST: myapp-prod.abc123.us-east-1.rds.amazonaws.com
+  DATABASE_READ_HOST: myapp-prod-replica-1.abc123.us-east-1.rds.amazonaws.com
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: myapp
+```
+
+## Monitoring and Performance
+
+### CloudWatch Metrics
+
+Key metrics to monitor:
+
+| Metric | Threshold | Action |
+|--------|-----------|--------|
+| CPUUtilization | > 80% | Scale up instance class |
+| FreeableMemory | < 1 GB | Scale up instance class |
+| DatabaseConnections | > 80% of max | Investigate connection pooling |
+| ReadLatency | > 10ms | Add read replica |
+| WriteLatency | > 10ms | Upgrade to Provisioned IOPS |
+| FreeStorageSpace | < 10 GB | Increase storage |
+
+### Performance Insights
+
+Enable Performance Insights for query-level monitoring.
+
+```hcl
+resource "aws_db_instance" "main" {
+  # ... other configuration ...
+  
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7  # days
+  performance_insights_kms_key_id       = aws_kms_key.rds.arn
+}
+```
+
+**View Top SQL Queries:**
+```bash
+# Get Performance Insights data
+aws pi get-resource-metrics \
+  --service-type RDS \
+  --identifier db-ABCDEFGHIJKLMNOP \
+  --metric-queries file://query.json \
+  --start-time 2024-01-15T00:00:00Z \
+  --end-time 2024-01-15T23:59:59Z
+```
+
+### Enhanced Monitoring
+
+Enable OS-level metrics with Enhanced Monitoring.
+
+```hcl
+resource "aws_db_instance" "main" {
+  # ... other configuration ...
+  
+  monitoring_interval = 60  # seconds
+  monitoring_role_arn = aws_iam_role.rds_monitoring.arn
+}
+
+resource "aws_iam_role" "rds_monitoring" {
+  name = "myapp-rds-monitoring-role"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "monitoring.rds.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "rds_monitoring" {
+  role       = aws_iam_role.rds_monitoring.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+```
+
+## Database Maintenance
+
+### Maintenance Windows
+
+Schedule maintenance during low-traffic periods.
+
+```hcl
+resource "aws_db_instance" "main" {
+  # ... other configuration ...
+  
+  maintenance_window = "sun:04:00-sun:05:00"  # UTC
+  auto_minor_version_upgrade = true
+}
+```
+
+**Maintenance Activities:**
+- OS patches
+- Database engine patches
+- Hardware maintenance
+- Certificate rotation
+
+### Version Upgrades
+
+Upgrade PostgreSQL version with minimal downtime.
+
+```bash
+# Check available versions
+aws rds describe-db-engine-versions \
+  --engine postgres \
+  --engine-version 15.3
+
+# Modify instance to new version
+aws rds modify-db-instance \
+  --db-instance-identifier myapp-prod \
+  --engine-version 16.1 \
+  --allow-major-version-upgrade \
+  --apply-immediately
+
+# Monitor upgrade progress
+aws rds describe-db-instances \
+  --db-instance-identifier myapp-prod \
+  --query 'DBInstances[0].DBInstanceStatus'
+```
+
+<Warning>
+Major version upgrades require downtime. Test in staging first and schedule during maintenance windows.
+</Warning>
+
+## Connection Pooling
+
+Use connection pooling to optimize database connections.
+
+### PgBouncer Configuration
+
+```yaml
+# pgbouncer-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: myapp-prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+    spec:
+      containers:
+      - name: pgbouncer
+        image: pgbouncer/pgbouncer:latest
+        ports:
+        - containerPort: 5432
+        env:
+        - name: DATABASES_HOST
+          value: myapp-prod.abc123.us-east-1.rds.amazonaws.com
+        - name: DATABASES_PORT
+          value: "5432"
+        - name: DATABASES_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DATABASES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        - name: POOL_MODE
+          value: transaction
+        - name: MAX_CLIENT_CONN
+          value: "1000"
+        - name: DEFAULT_POOL_SIZE
+          value: "25"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: myapp-prod
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+  - port: 5432
+    targetPort: 5432
+```
+
+**Application Connection:**
+```bash
+# Connect through PgBouncer instead of directly to RDS
+DATABASE_HOST=pgbouncer.myapp-prod.svc.cluster.local
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection Timeout">
+    
+**Symptoms:**
+- Can't connect to database
+- Connection timeout errors
+
+**Solutions:**
+
+1. Check security group allows traffic from EKS nodes:
+```bash
+aws ec2 describe-security-groups --group-ids sg-xxx
+```
+
+2. Verify RDS instance is available:
+```bash
+aws rds describe-db-instances --db-instance-identifier myapp-prod
+```
+
+3. Test connectivity from pod:
+```bash
+kubectl exec -n myapp-prod deployment/myapp -- \
+  nc -zv myapp-prod.abc123.us-east-1.rds.amazonaws.com 5432
+```
+
+4. Check VPC routing and NAT gateway
+
+  </Accordion>
+
+  <Accordion title="High CPU Usage">
+    
+**Symptoms:**
+- Slow queries
+- High CPUUtilization metric
+
+**Solutions:**
+
+1. Check Performance Insights for slow queries
+2. Add indexes to frequently queried columns
+3. Optimize application queries
+4. Scale up to larger instance class
+5. Add read replicas for read-heavy workloads
+
+  </Accordion>
+
+  <Accordion title="Storage Full">
+    
+**Symptoms:**
+- "Disk full" errors
+- FreeStorageSpace metric near zero
+
+**Solutions:**
+
+1. Enable storage autoscaling:
+```bash
+aws rds modify-db-instance \
+  --db-instance-identifier myapp-prod \
+  --max-allocated-storage 1000
+```
+
+2. Manually increase storage:
+```bash
+aws rds modify-db-instance \
+  --db-instance-identifier myapp-prod \
+  --allocated-storage 1000
+```
+
+3. Clean up old data or implement data archival
+
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Multi-AZ for Production" icon="layer-group">
+    Enable Multi-AZ deployment for automatic failover and high availability
+  </Card>
+  <Card title="Enable Encryption" icon="lock">
+    Always encrypt data at rest and in transit with KMS and TLS
+  </Card>
+  <Card title="Regular Backups" icon="clock-rotate-left">
+    Maintain 30-day backup retention for production databases
+  </Card>
+  <Card title="Monitor Performance" icon="chart-line">
+    Use Performance Insights and CloudWatch for proactive monitoring
+  </Card>
+  <Card title="Connection Pooling" icon="plug">
+    Use PgBouncer or application-level pooling to optimize connections
+  </Card>
+  <Card title="Test Restores" icon="flask">
+    Regularly test backup restoration to verify recovery procedures
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AWS Kubernetes" icon="dharmachakra" href="/aws/kubernetes">
+    Connect applications to RDS from EKS
+  </Card>
+  <Card title="Security Overview" icon="shield" href="/security/overview">
+    Learn about database security best practices
+  </Card>
+  <Card title="Backup Strategy" icon="floppy-disk" href="/advanced/disaster-recovery">
+    Implement comprehensive backup and recovery
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/guides/troubleshooting">
+    Common database issues and solutions
+  </Card>
+</CardGroup>
+

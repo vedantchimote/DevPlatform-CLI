@@ -1,0 +1,462 @@
+---
+title: 'status'
+description: 'Check the status of an infrastructure environment'
+api: 'GET /status'
+---
+
+## Overview
+
+The `status` command checks the health and status of a provisioned environment, including infrastructure components and application pods.
+
+## Syntax
+
+```bash
+devplatform status [flags]
+```
+
+## Required Flags
+
+<ParamField path="app" type="string" required>
+  Application name
+  
+  **Example:** `payment`, `user-service`
+</ParamField>
+
+<ParamField path="env" type="string" required>
+  Environment type
+  
+  **Options:** `dev`, `staging`, `prod`
+</ParamField>
+
+## Optional Flags
+
+<ParamField path="output" type="string" default="table">
+  Output format
+  
+  **Options:** `table`, `json`, `yaml`
+</ParamField>
+
+<ParamField path="watch" type="integer">
+  Refresh interval in seconds (enables watch mode)
+  
+  **Example:** `5` (refresh every 5 seconds)
+</ParamField>
+
+<ParamField path="verbose" type="boolean" default="false">
+  Enable verbose output with detailed component information
+</ParamField>
+
+<ParamField path="no-color" type="boolean" default="false">
+  Disable colored output
+</ParamField>
+
+## Examples
+
+### Basic Status Check
+
+```bash
+devplatform status --app payment --env dev
+```
+
+Output:
+
+```
+Environment: payment-dev
+Status: Healthy ✓
+Provider: aws
+Region: us-east-1
+Last Updated: 2024-01-15 10:30:00
+
+Components:
+  ✓ VPC (vpc-abc123)
+    CIDR: 10.0.0.0/16
+    Subnets: 6 (3 public, 3 private)
+    
+  ✓ Database (payment-dev-db)
+    Type: RDS PostgreSQL
+    Instance: db.t3.micro
+    Endpoint: payment-dev.abc123.us-east-1.rds.amazonaws.com:5432
+    Status: available
+    
+  ✓ Namespace (dev-payment)
+    Cluster: shared-devplatform-cluster
+    Resource Quota: 4 CPU, 8Gi Memory
+    
+  ✓ Pods (2/2 ready)
+    payment-app-7d9f8b6c5-abc12: Running
+    payment-app-7d9f8b6c5-def34: Running
+    
+  ✓ Ingress
+    URL: https://payment-dev.example.com
+    Status: Active
+
+Estimated Monthly Cost: $75
+```
+
+### JSON Output
+
+```bash
+devplatform status --app payment --env dev --output json
+```
+
+Output:
+
+```json
+{
+  "app_name": "payment",
+  "environment": "dev",
+  "status": "healthy",
+  "provider": "aws",
+  "region": "us-east-1",
+  "last_updated": "2024-01-15T10:30:00Z",
+  "components": {
+    "vpc": {
+      "status": "ok",
+      "id": "vpc-abc123",
+      "cidr": "10.0.0.0/16",
+      "subnets": 6
+    },
+    "database": {
+      "status": "ok",
+      "id": "payment-dev-db",
+      "type": "rds-postgresql",
+      "instance_class": "db.t3.micro",
+      "endpoint": "payment-dev.abc123.us-east-1.rds.amazonaws.com:5432",
+      "availability": "available"
+    },
+    "namespace": {
+      "status": "ok",
+      "name": "dev-payment",
+      "cluster": "shared-devplatform-cluster"
+    },
+    "pods": {
+      "status": "ok",
+      "ready": 2,
+      "total": 2,
+      "pods": [
+        {
+          "name": "payment-app-7d9f8b6c5-abc12",
+          "status": "Running",
+          "ready": true
+        },
+        {
+          "name": "payment-app-7d9f8b6c5-def34",
+          "status": "Running",
+          "ready": true
+        }
+      ]
+    },
+    "ingress": {
+      "status": "ok",
+      "url": "https://payment-dev.example.com"
+    }
+  },
+  "estimated_monthly_cost": 75.00
+}
+```
+
+### Watch Mode
+
+```bash
+devplatform status --app payment --env dev --watch 5
+```
+
+This refreshes the status every 5 seconds. Press `Ctrl+C` to exit.
+
+```
+Environment: payment-dev
+Status: Healthy ✓
+Last Refresh: 2024-01-15 10:30:05
+
+Components:
+  ✓ VPC (vpc-abc123)
+  ✓ Database (payment-dev-db)
+  ✓ Namespace (dev-payment)
+  ✓ Pods (2/2 ready)
+  ✓ Ingress (https://payment-dev.example.com)
+
+Refreshing every 5 seconds... (Press Ctrl+C to exit)
+```
+
+### Verbose Output
+
+```bash
+devplatform status --app payment --env dev --verbose
+```
+
+Includes additional details like:
+- Security group rules
+- Database parameter groups
+- Pod resource usage
+- Ingress annotations
+- Recent events
+
+## Status Values
+
+### Overall Status
+
+| Status | Description | Icon |
+|--------|-------------|------|
+| Healthy | All components operational | ✓ |
+| Degraded | Some components have issues | ⚠ |
+| Failed | Critical components failed | ✗ |
+| Not Found | Environment doesn't exist | - |
+| Provisioning | Environment being created | ⏳ |
+| Destroying | Environment being destroyed | 🗑 |
+
+### Component Status
+
+| Status | Description |
+|--------|-------------|
+| ok | Component is healthy |
+| warning | Component has non-critical issues |
+| error | Component has critical issues |
+| not_found | Component doesn't exist |
+| pending | Component is being created |
+
+## Status Checks
+
+The command performs these checks:
+
+<Steps>
+  <Step title="Terraform State">
+    Verifies Terraform state exists and is accessible
+  </Step>
+  <Step title="VPC/VNet">
+    Checks network infrastructure exists and is configured correctly
+  </Step>
+  <Step title="Database">
+    Verifies database instance is available and accessible
+  </Step>
+  <Step title="Kubernetes Namespace">
+    Confirms namespace exists with proper resource quotas
+  </Step>
+  <Step title="Pods">
+    Checks all pods are running and ready
+  </Step>
+  <Step title="Ingress">
+    Verifies ingress is configured and accessible
+  </Step>
+</Steps>
+
+## Use Cases
+
+### Health Monitoring
+
+```bash
+#!/bin/bash
+# health-check.sh
+
+STATUS=$(devplatform status --app payment --env prod --output json | jq -r '.status')
+
+if [ "$STATUS" != "healthy" ]; then
+  echo "Alert: Environment is $STATUS"
+  # Send alert to monitoring system
+  curl -X POST https://monitoring.example.com/alert \
+    -d "app=payment&env=prod&status=$STATUS"
+fi
+```
+
+### CI/CD Verification
+
+```bash
+#!/bin/bash
+# verify-deployment.sh
+
+# Deploy application
+devplatform create --app myapp --env staging
+
+# Wait for deployment to complete
+sleep 30
+
+# Verify status
+devplatform status --app myapp --env staging --output json > status.json
+
+# Check if healthy
+if jq -e '.status == "healthy"' status.json > /dev/null; then
+  echo "Deployment successful!"
+  exit 0
+else
+  echo "Deployment failed!"
+  cat status.json
+  exit 1
+fi
+```
+
+### Cost Tracking
+
+```bash
+#!/bin/bash
+# track-costs.sh
+
+# Get cost for all environments
+for ENV in dev staging prod; do
+  COST=$(devplatform status --app payment --env $ENV --output json | jq -r '.estimated_monthly_cost')
+  echo "$ENV: \$$COST/month"
+done
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Environment Not Found">
+    If the environment doesn't exist:
+
+    ```
+    ❌ Error: Environment not found
+
+    No Terraform state found for payment-dev.
+
+    Resolution:
+    1. Verify the app name and environment are correct
+    2. Check if the environment was created: devplatform create --app payment --env dev
+    3. Verify Terraform backend configuration
+    ```
+
+    **Solution:**
+    ```bash
+    # List all environments
+    ls ~/.devplatform/terraform/
+
+    # Create the environment if it doesn't exist
+    devplatform create --app payment --env dev
+    ```
+  </Accordion>
+
+  <Accordion title="Pods Not Ready">
+    If pods are not ready:
+
+    ```
+    ⚠ Pods (0/2 ready)
+      payment-app-7d9f8b6c5-abc12: CrashLoopBackOff
+      payment-app-7d9f8b6c5-def34: ImagePullBackOff
+    ```
+
+    **Solution:**
+    ```bash
+    # Check pod logs
+    kubectl logs -n dev-payment payment-app-7d9f8b6c5-abc12
+
+    # Describe pod for events
+    kubectl describe pod -n dev-payment payment-app-7d9f8b6c5-abc12
+
+    # Check recent events
+    kubectl get events -n dev-payment --sort-by='.lastTimestamp'
+    ```
+  </Accordion>
+
+  <Accordion title="Database Unavailable">
+    If database is unavailable:
+
+    ```
+    ✗ Database (payment-dev-db)
+      Status: stopped
+    ```
+
+    **Solution:**
+    ```bash
+    # Check database status in AWS/Azure console
+    # Or use cloud CLI:
+    
+    # AWS
+    aws rds describe-db-instances --db-instance-identifier payment-dev-db
+
+    # Azure
+    az postgres server show --name payment-dev-db --resource-group rg-payment-dev
+    ```
+  </Accordion>
+
+  <Accordion title="Ingress Not Accessible">
+    If ingress URL is not accessible:
+
+    ```
+    ⚠ Ingress
+      URL: https://payment-dev.example.com
+      Status: Pending
+    ```
+
+    **Solution:**
+    ```bash
+    # Check ingress status
+    kubectl get ingress -n dev-payment
+
+    # Check ingress controller logs
+    kubectl logs -n kube-system -l app=aws-load-balancer-controller
+
+    # Verify DNS configuration
+    nslookup payment-dev.example.com
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Output Formats
+
+<Tabs>
+  <Tab title="Table (Default)">
+    Human-readable table format with colors and icons:
+
+    ```bash
+    devplatform status --app payment --env dev
+    ```
+
+    Best for: Interactive terminal use
+  </Tab>
+
+  <Tab title="JSON">
+    Machine-readable JSON format:
+
+    ```bash
+    devplatform status --app payment --env dev --output json
+    ```
+
+    Best for: Scripting, CI/CD, monitoring integrations
+  </Tab>
+
+  <Tab title="YAML">
+    YAML format for configuration management:
+
+    ```bash
+    devplatform status --app payment --env dev --output yaml
+    ```
+
+    Best for: Configuration files, GitOps workflows
+  </Tab>
+</Tabs>
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Environment is healthy |
+| 1 | Environment has issues or doesn't exist |
+| 1001-1099 | Authentication errors |
+| 1500-1599 | Configuration errors |
+
+## Performance
+
+Status checks typically complete in:
+
+- **Local state**: < 1 second
+- **Remote state**: 1-2 seconds
+- **Full health check**: 2-5 seconds
+
+<Tip>
+  Use `--output json` for faster parsing in scripts, as it skips formatting overhead.
+</Tip>
+
+## Related Commands
+
+<CardGroup cols={2}>
+  <Card title="create" icon="plus" href="/api-reference/create">
+    Create a new environment
+  </Card>
+  <Card title="destroy" icon="trash" href="/api-reference/destroy">
+    Destroy an environment
+  </Card>
+</CardGroup>
+
+## See Also
+
+- [Troubleshooting Guide](/guides/troubleshooting)
+- [Monitoring Best Practices](/guides/monitoring)
+- [CI/CD Integration](/advanced/ci-cd-integration)

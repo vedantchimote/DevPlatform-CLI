@@ -1,0 +1,227 @@
+---
+title: 'Azure Database'
+description: 'Azure Database for PostgreSQL configuration, sizing, backups, and management for DevPlatform CLI'
+icon: 'database'
+---
+
+DevPlatform CLI provisions Azure Database for PostgreSQL with automated backups, encryption, and environment-specific configurations.
+
+## Overview
+
+Each environment gets a dedicated Azure Database instance sized appropriately for the workload, with automatic backups, encryption at rest, and secure network configuration.
+
+<CardGroup cols={3}>
+  <Card title="Instance Configuration" icon="server" href="#instance-configuration">
+    SKUs and storage options
+  </Card>
+  <Card title="Security" icon="lock" href="#database-security">
+    Encryption, authentication, and network isolation
+  </Card>
+  <Card title="Backups" icon="clock-rotate-left" href="#backup-and-recovery">
+    Automated backups and point-in-time recovery
+  </Card>
+</CardGroup>
+
+## Instance Configuration
+
+### Instance Sizing by Environment
+
+<Tabs>
+  <Tab title="Development">
+**SKU:** `B_Gen5_1`
+
+**Specifications:**
+- vCores: 1
+- RAM: 2 GB
+- Storage: 32 GB
+- IOPS: 640
+
+**Configuration:**
+```hcl
+resource "azurerm_postgresql_flexible_server" "main" {
+  name                = "myapp-dev-db"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  
+  sku_name   = "B_Standard_B1ms"
+  storage_mb = 32768
+  version    = "15"
+  
+  administrator_login    = "psqladmin"
+  administrator_password = random_password.db_password.result
+  
+  zone                      = "1"
+  backup_retention_days     = 7
+  geo_redundant_backup_enabled = false
+  
+  high_availability {
+    mode = "Disabled"
+  }
+}
+```
+
+**Monthly Cost:** ~$30
+  </Tab>
+  <Tab title="Staging">
+**SKU:** `GP_Gen5_2`
+
+**Specifications:**
+- vCores: 2
+- RAM: 10 GB
+- Storage: 128 GB
+- IOPS: 3,200
+
+**Configuration:**
+```hcl
+resource "azurerm_postgresql_flexible_server" "main" {
+  name                = "myapp-staging-db"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  
+  sku_name   = "GP_Standard_D2s_v3"
+  storage_mb = 131072
+  version    = "15"
+  
+  administrator_login    = "psqladmin"
+  administrator_password = random_password.db_password.result
+  
+  zone                      = "1"
+  backup_retention_days     = 14
+  geo_redundant_backup_enabled = false
+  
+  high_availability {
+    mode = "Disabled"
+  }
+}
+```
+
+**Monthly Cost:** ~$110
+  </Tab>
+  <Tab title="Production">
+**SKU:** `MO_Gen5_4`
+
+**Specifications:**
+- vCores: 4
+- RAM: 20 GB
+- Storage: 512 GB
+- IOPS: 12,800
+
+**Configuration:**
+```hcl
+resource "azurerm_postgresql_flexible_server" "main" {
+  name                = "myapp-prod-db"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  
+  sku_name   = "MO_Standard_E4s_v3"
+  storage_mb = 524288
+  version    = "15"
+  
+  administrator_login    = "psqladmin"
+  administrator_password = random_password.db_password.result
+  
+  backup_retention_days     = 30
+  geo_redundant_backup_enabled = true
+  
+  high_availability {
+    mode                      = "ZoneRedundant"
+    standby_availability_zone = "2"
+  }
+}
+```
+
+**Monthly Cost:** ~$420
+  </Tab>
+</Tabs>
+
+## Database Security
+
+### Encryption at Rest
+
+```hcl
+resource "azurerm_postgresql_flexible_server" "main" {
+  # ... other configuration ...
+  
+  customer_managed_key {
+    key_vault_key_id = azurerm_key_vault_key.db.id
+  }
+}
+```
+
+### Password Management
+
+```hcl
+resource "random_password" "db_password" {
+  length  = 32
+  special = true
+}
+
+resource "azurerm_key_vault_secret" "db_password" {
+  name         = "myapp-dev-db-password"
+  value        = random_password.db_password.result
+  key_vault_id = azurerm_key_vault.main.id
+}
+```
+
+## Backup and Recovery
+
+### Automated Backups
+
+```hcl
+resource "azurerm_postgresql_flexible_server" "main" {
+  # ... other configuration ...
+  
+  backup_retention_days     = 30
+  geo_redundant_backup_enabled = true
+}
+```
+
+## High Availability
+
+### Zone-Redundant Deployment
+
+```hcl
+resource "azurerm_postgresql_flexible_server" "main" {
+  # ... other configuration ...
+  
+  high_availability {
+    mode                      = "ZoneRedundant"
+    standby_availability_zone = "2"
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Zone-Redundant for Production" icon="layer-group">
+    Enable zone-redundant HA for automatic failover
+  </Card>
+  <Card title="Enable Encryption" icon="lock">
+    Always encrypt data at rest and in transit
+  </Card>
+  <Card title="Regular Backups" icon="clock-rotate-left">
+    Maintain 30-day backup retention for production
+  </Card>
+  <Card title="Monitor Performance" icon="chart-line">
+    Use Azure Monitor for proactive monitoring
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Azure Kubernetes" icon="dharmachakra" href="/azure/kubernetes">
+    Connect applications to Azure Database from AKS
+  </Card>
+  <Card title="Security Overview" icon="shield" href="/security/overview">
+    Database security best practices
+  </Card>
+  <Card title="Backup Strategy" icon="floppy-disk" href="/advanced/disaster-recovery">
+    Comprehensive backup and recovery
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/guides/troubleshooting">
+    Common database issues
+  </Card>
+</CardGroup>
+

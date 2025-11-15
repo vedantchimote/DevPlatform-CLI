@@ -1,0 +1,353 @@
+---
+title: 'Security Overview'
+description: 'Comprehensive security architecture for multi-cloud deployments'
+icon: 'shield-halved'
+---
+
+DevPlatform CLI implements defense-in-depth security across identity, network, data, and audit layers for both AWS and Azure deployments.
+
+## Security Architecture
+
+<Tabs>
+  <Tab title="AWS">
+    ```mermaid
+    graph TB
+        subgraph "Identity & Access"
+            IAM[IAM Authentication]
+            RBAC[Kubernetes RBAC]
+            IRSA[IAM Roles for Service Accounts]
+        end
+        
+        subgraph "Network Security"
+            SG[Security Groups]
+            NACL[Network ACLs]
+            PrivateSubnets[Private Subnets]
+            TLS[TLS Encryption]
+        end
+        
+        subgraph "Data Security"
+            Encryption[Encryption at Rest]
+            SecretsManager[AWS Secrets Manager]
+            KMS[AWS KMS]
+        end
+        
+        subgraph "Audit & Compliance"
+            CloudTrail[CloudTrail Logging]
+            VPCFlowLogs[VPC Flow Logs]
+            K8sAudit[K8s Audit Logs]
+        end
+        
+        Developer[Developer] --> IAM
+        IAM --> RBAC
+        RBAC --> IRSA
+        IRSA --> SG
+        SG --> PrivateSubnets
+        PrivateSubnets --> TLS
+        TLS --> Encryption
+        Encryption --> SecretsManager
+        SecretsManager --> KMS
+        IAM -.->|Logs| CloudTrail
+        SG -.->|Logs| VPCFlowLogs
+        RBAC -.->|Logs| K8sAudit
+    ```
+  </Tab>
+  <Tab title="Azure">
+    ```mermaid
+    graph TB
+        subgraph "Identity & Access"
+            AAD[Azure AD Authentication]
+            RBAC[Kubernetes RBAC]
+            WorkloadID[Workload Identity]
+        end
+        
+        subgraph "Network Security"
+            NSG[Network Security Groups]
+            ASG[Application Security Groups]
+            PrivateSubnets[Private Subnets]
+            TLS[TLS Encryption]
+        end
+        
+        subgraph "Data Security"
+            Encryption[Encryption at Rest]
+            KeyVault[Azure Key Vault]
+            ManagedKeys[Managed Keys]
+        end
+        
+        subgraph "Audit & Compliance"
+            ActivityLog[Activity Log]
+            NSGFlowLogs[NSG Flow Logs]
+            K8sAudit[K8s Audit Logs]
+        end
+        
+        Developer[Developer] --> AAD
+        AAD --> RBAC
+        RBAC --> WorkloadID
+        WorkloadID --> NSG
+        NSG --> PrivateSubnets
+        PrivateSubnets --> TLS
+        TLS --> Encryption
+        Encryption --> KeyVault
+        KeyVault --> ManagedKeys
+        AAD -.->|Logs| ActivityLog
+        NSG -.->|Logs| NSGFlowLogs
+        RBAC -.->|Logs| K8sAudit
+    ```
+  </Tab>
+</Tabs>
+
+## Security Layers
+
+<CardGroup cols={2}>
+  <Card title="Identity & Access" icon="user-shield" href="/security/authentication">
+    Multi-factor authentication, IAM/Azure AD integration, and RBAC
+  </Card>
+  <Card title="Network Security" icon="network-wired" href="/security/network">
+    Security groups, private subnets, and network isolation
+  </Card>
+  <Card title="Data Protection" icon="lock" href="/security/encryption">
+    Encryption at rest and in transit, key management
+  </Card>
+  <Card title="Audit & Compliance" icon="clipboard-check" href="/security/audit-logging">
+    Comprehensive logging, monitoring, and compliance reporting
+  </Card>
+</CardGroup>
+
+## Security Principles
+
+<AccordionGroup>
+  <Accordion title="Least Privilege Access">
+    Grant minimum permissions required for each user, service, and application. Use IAM policies (AWS) or RBAC roles (Azure) to enforce granular access control.
+    
+    - Developers: Read-only access to production
+    - Applications: Specific resource permissions only
+    - Admins: Time-limited elevated access
+  </Accordion>
+
+  <Accordion title="Defense in Depth">
+    Multiple layers of security controls to protect against various attack vectors:
+    
+    - Network layer: Security groups, NACLs, private subnets
+    - Application layer: Authentication, authorization, input validation
+    - Data layer: Encryption, access controls, audit logging
+  </Accordion>
+
+  <Accordion title="Zero Trust Network">
+    Never trust, always verify. All network traffic is authenticated and authorized:
+    
+    - No implicit trust based on network location
+    - Mutual TLS between services
+    - Service-to-service authentication
+  </Accordion>
+
+  <Accordion title="Encryption Everywhere">
+    Encrypt data at rest and in transit using industry-standard algorithms:
+    
+    - TLS 1.2+ for all network communication
+    - AES-256 for data at rest
+    - Customer-managed encryption keys
+  </Accordion>
+</AccordionGroup>
+
+## Quick Security Checklist
+
+<Steps>
+  <Step title="Configure Cloud Authentication">
+    Set up AWS CLI or Azure CLI with appropriate credentials
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        aws configure
+        # Enter Access Key ID and Secret Access Key
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```bash
+        az login
+        # Follow browser authentication flow
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify IAM Permissions">
+    Ensure your user/role has required permissions for infrastructure provisioning
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        aws sts get-caller-identity
+        # Verify account and role
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```bash
+        az account show
+        # Verify subscription and tenant
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Enable Encryption">
+    Verify encryption is enabled for all data stores
+    
+    - Database encryption at rest
+    - Storage encryption (S3/Blob Storage)
+    - Secrets encryption (Secrets Manager/Key Vault)
+  </Step>
+
+  <Step title="Configure Network Security">
+    Set up security groups and network isolation
+    
+    - Private subnets for databases
+    - Security group rules for least privilege
+    - Network ACLs for additional protection
+  </Step>
+
+  <Step title="Enable Audit Logging">
+    Turn on comprehensive logging for compliance
+    
+    <Tabs>
+      <Tab title="AWS">
+        - CloudTrail for API calls
+        - VPC Flow Logs for network traffic
+        - Kubernetes audit logs
+      </Tab>
+      <Tab title="Azure">
+        - Activity Log for API calls
+        - NSG Flow Logs for network traffic
+        - Kubernetes audit logs
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Security by Default
+
+DevPlatform CLI implements security best practices automatically:
+
+| Feature | AWS Implementation | Azure Implementation |
+|---------|-------------------|---------------------|
+| **Network Isolation** | Private subnets for databases and applications | Private subnets with service endpoints |
+| **Encryption at Rest** | KMS encryption for RDS, EBS, S3 | Platform-managed encryption for all resources |
+| **Encryption in Transit** | TLS 1.2+ for all connections | TLS 1.2+ for all connections |
+| **Secret Management** | AWS Secrets Manager with KMS | Azure Key Vault with managed keys |
+| **Access Control** | IAM roles with least privilege | Azure RBAC with least privilege |
+| **Audit Logging** | CloudTrail + VPC Flow Logs | Activity Log + NSG Flow Logs |
+
+<Note>
+All security features are enabled by default. No additional configuration required for basic security posture.
+</Note>
+
+## Compliance Standards
+
+DevPlatform CLI helps meet common compliance requirements:
+
+<CardGroup cols={3}>
+  <Card title="SOC 2" icon="certificate">
+    Access controls, encryption, audit logging
+  </Card>
+  <Card title="HIPAA" icon="hospital">
+    Data encryption, access logs, secure transmission
+  </Card>
+  <Card title="PCI DSS" icon="credit-card">
+    Network segmentation, encryption, monitoring
+  </Card>
+  <Card title="GDPR" icon="shield-check">
+    Data protection, access controls, audit trails
+  </Card>
+  <Card title="ISO 27001" icon="file-shield">
+    Information security management system
+  </Card>
+  <Card title="FedRAMP" icon="flag-usa">
+    Federal security requirements (AWS GovCloud)
+  </Card>
+</CardGroup>
+
+<Warning>
+While DevPlatform CLI implements security best practices, achieving compliance certification requires additional organizational controls, policies, and audits.
+</Warning>
+
+## Security Monitoring
+
+Real-time security monitoring and alerting:
+
+<Tabs>
+  <Tab title="AWS">
+    ```mermaid
+    graph LR
+        CloudTrail[CloudTrail] --> CloudWatch[CloudWatch]
+        VPCFlow[VPC Flow Logs] --> CloudWatch
+        K8sAudit[K8s Audit Logs] --> CloudWatch
+        
+        CloudWatch --> Alarms[CloudWatch Alarms]
+        Alarms --> SNS[SNS Notifications]
+        SNS --> Email[Email/Slack]
+    ```
+    
+    Monitor for:
+    - Unauthorized API calls
+    - Failed authentication attempts
+    - Security group changes
+    - IAM policy modifications
+  </Tab>
+  <Tab title="Azure">
+    ```mermaid
+    graph LR
+        ActivityLog[Activity Log] --> LogAnalytics[Log Analytics]
+        NSGFlow[NSG Flow Logs] --> LogAnalytics
+        K8sAudit[K8s Audit Logs] --> LogAnalytics
+        
+        LogAnalytics --> Alerts[Azure Alerts]
+        Alerts --> ActionGroup[Action Groups]
+        ActionGroup --> Email[Email/Slack]
+    ```
+    
+    Monitor for:
+    - Unauthorized API calls
+    - Failed authentication attempts
+    - NSG rule changes
+    - RBAC role modifications
+  </Tab>
+</Tabs>
+
+## Incident Response
+
+<Steps>
+  <Step title="Detection">
+    Security event detected through monitoring or alerts
+  </Step>
+  <Step title="Isolation">
+    Immediately revoke compromised credentials and isolate affected resources
+  </Step>
+  <Step title="Investigation">
+    Analyze logs to determine scope and root cause
+  </Step>
+  <Step title="Remediation">
+    Apply fixes, rotate credentials, patch vulnerabilities
+  </Step>
+  <Step title="Recovery">
+    Restore services and verify security posture
+  </Step>
+  <Step title="Post-Mortem">
+    Document incident and update security policies
+  </Step>
+</Steps>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Authentication Guide" icon="key" href="/security/authentication">
+    Configure IAM, Azure AD, and Kubernetes authentication
+  </Card>
+  <Card title="RBAC Configuration" icon="users-gear" href="/security/rbac">
+    Set up role-based access control
+  </Card>
+  <Card title="Encryption Guide" icon="lock" href="/security/encryption">
+    Configure encryption at rest and in transit
+  </Card>
+  <Card title="Audit Logging" icon="file-lines" href="/security/audit-logging">
+    Enable and analyze security logs
+  </Card>
+</CardGroup>

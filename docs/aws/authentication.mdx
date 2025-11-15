@@ -1,0 +1,869 @@
+---
+title: 'AWS Authentication'
+description: 'Configure AWS credentials, IAM permissions, and IAM Roles for Service Accounts (IRSA) for secure access'
+icon: 'key'
+---
+
+DevPlatform CLI requires AWS credentials to provision infrastructure and manage resources. This guide covers authentication methods, required IAM permissions, and advanced security configurations.
+
+## Overview
+
+The CLI uses AWS credentials to authenticate with AWS services through the AWS SDK. It supports multiple authentication methods and implements least-privilege IAM policies for secure operations.
+
+<CardGroup cols={3}>
+  <Card title="Credentials Setup" icon="id-card" href="#authentication-methods">
+    Configure AWS CLI or environment variables
+  </Card>
+  <Card title="IAM Permissions" icon="shield-check" href="#required-iam-permissions">
+    Required policies for Terraform operations
+  </Card>
+  <Card title="IRSA" icon="user-lock" href="#iam-roles-for-service-accounts">
+    Secure pod-to-AWS authentication
+  </Card>
+</CardGroup>
+
+## Authentication Flow
+
+### Complete Authentication Process
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant CLI as DevPlatform CLI
+    participant Creds as AWS Credentials
+    participant STS as AWS STS
+    participant IAM as AWS IAM
+    participant Resources as AWS Resources
+    
+    Dev->>CLI: devplatform create --provider aws
+    CLI->>Creds: Load Credentials
+    
+    alt Credentials Found
+        Creds-->>CLI: Access Key + Secret
+        CLI->>STS: GetCallerIdentity
+        STS->>IAM: Verify Credentials
+        IAM-->>STS: Identity Confirmed
+        STS-->>CLI: Account ID + ARN
+        
+        CLI->>IAM: Check Permissions
+        IAM-->>CLI: Permissions Valid
+        
+        CLI->>Resources: Provision Infrastructure
+        Resources-->>CLI: Resources Created
+    else Credentials Not Found
+        Creds-->>CLI: No Credentials
+        CLI-->>Dev: Error: Configure AWS CLI
+    else Credentials Expired
+        Creds-->>CLI: Expired Token
+        CLI->>STS: Refresh Token
+        
+        alt Refresh Success
+            STS-->>CLI: New Token
+            CLI->>Resources: Retry Operation
+        else Refresh Failed
+            STS-->>CLI: Refresh Failed
+            CLI-->>Dev: Error: Re-authenticate
+        end
+    end
+```
+
+## Authentication Methods
+
+DevPlatform CLI supports multiple AWS authentication methods, checked in the following order:
+
+### 1. Environment Variables (Highest Priority)
+
+<Tabs>
+  <Tab title="Static Credentials">
+```bash
+# Set AWS credentials as environment variables
+export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+export AWS_DEFAULT_REGION=us-east-1
+
+# Verify credentials
+aws sts get-caller-identity
+
+# Run DevPlatform CLI
+devplatform create --app myapp --env dev --provider aws
+```
+
+<Warning>
+Static credentials in environment variables are convenient for development but should not be used in production. Use IAM roles or temporary credentials instead.
+</Warning>
+  </Tab>
+  <Tab title="Session Tokens">
+```bash
+# For MFA or temporary credentials
+export AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+export AWS_SESSION_TOKEN=FwoGZXIvYXdzEBYaDH...
+export AWS_DEFAULT_REGION=us-east-1
+
+# Session tokens expire (typically 1-12 hours)
+# Verify token is still valid
+aws sts get-caller-identity
+```
+
+<Note>
+Session tokens are temporary and more secure than static credentials. They're automatically used when you assume an IAM role.
+</Note>
+  </Tab>
+</Tabs>
+
+### 2. AWS CLI Configuration Files
+
+<Tabs>
+  <Tab title="Default Profile">
+```bash
+# Configure AWS CLI (creates ~/.aws/credentials and ~/.aws/config)
+aws configure
+
+# You'll be prompted for:
+# - AWS Access Key ID
+# - AWS Secret Access Key
+# - Default region name
+# - Default output format
+
+# Verify configuration
+aws sts get-caller-identity
+
+# DevPlatform CLI automatically uses default profile
+devplatform create --app myapp --env dev --provider aws
+```
+
+**Files Created:**
+
+`~/.aws/credentials`:
+```ini
+[default]
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+```
+
+`~/.aws/config`:
+```ini
+[default]
+region = us-east-1
+output = json
+```
+  </Tab>
+  <Tab title="Named Profiles">
+```bash
+# Configure a named profile
+aws configure --profile devplatform
+
+# Or manually edit ~/.aws/credentials
+[devplatform]
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+# And ~/.aws/config
+[profile devplatform]
+region = us-east-1
+output = json
+
+# Use the profile with DevPlatform CLI
+export AWS_PROFILE=devplatform
+devplatform create --app myapp --env dev --provider aws
+
+# Or specify in each command
+AWS_PROFILE=devplatform devplatform create --app myapp --env dev --provider aws
+```
+  </Tab>
+  <Tab title="Role Assumption">
+```bash
+# Configure a profile that assumes a role
+# ~/.aws/config
+[profile devplatform-admin]
+role_arn = arn:aws:iam::123456789012:role/DevPlatformAdmin
+source_profile = default
+region = us-east-1
+mfa_serial = arn:aws:iam::123456789012:mfa/john.doe
+
+# Use the role profile
+export AWS_PROFILE=devplatform-admin
+devplatform create --app myapp --env dev --provider aws
+
+# You'll be prompted for MFA token if configured
+# The CLI automatically assumes the role and uses temporary credentials
+```
+
+<Tip>
+Role assumption with MFA provides the highest security for human users. The temporary credentials expire automatically.
+</Tip>
+  </Tab>
+</Tabs>
+
+### 3. IAM Instance Profile (EC2/ECS)
+
+When running on AWS compute services, use IAM instance profiles:
+
+```bash
+# No credentials needed - automatically provided by AWS
+# Works on:
+# - EC2 instances
+# - ECS tasks
+# - Lambda functions
+# - CodeBuild projects
+
+# The CLI automatically detects and uses instance metadata
+devplatform create --app myapp --env dev --provider aws
+```
+
+**Instance Metadata Flow:**
+
+```mermaid
+sequenceDiagram
+    participant CLI as DevPlatform CLI
+    participant IMDS as Instance Metadata Service
+    participant IAM as AWS IAM
+    participant STS as AWS STS
+    
+    CLI->>IMDS: GET /latest/meta-data/iam/security-credentials/
+    IMDS-->>CLI: Role Name
+    
+    CLI->>IMDS: GET /latest/meta-data/iam/security-credentials/{role}
+    IMDS->>IAM: Verify Instance Profile
+    IAM->>STS: Generate Temporary Credentials
+    STS-->>IMDS: Credentials (valid 6 hours)
+    IMDS-->>CLI: Access Key, Secret, Token
+    
+    CLI->>CLI: Use Credentials
+    
+    Note over CLI,IMDS: Credentials auto-refresh before expiry
+```
+
+### 4. EKS Pod Identity (IRSA)
+
+For applications running in EKS pods, use IAM Roles for Service Accounts:
+
+```yaml
+# ServiceAccount with IRSA annotation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: devplatform-cli
+  namespace: default
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/DevPlatformCLIRole
+```
+
+```bash
+# Pod automatically gets AWS credentials via IRSA
+# No manual credential configuration needed
+kubectl run devplatform-cli \
+  --image=devplatform/cli:latest \
+  --serviceaccount=devplatform-cli \
+  -- devplatform create --app myapp --env dev --provider aws
+```
+
+## Required IAM Permissions
+
+DevPlatform CLI requires specific IAM permissions to provision and manage infrastructure.
+
+### Minimum Required Policy
+
+<Tabs>
+  <Tab title="Terraform Execution Policy">
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VPCManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVpc",
+        "ec2:DeleteVpc",
+        "ec2:DescribeVpcs",
+        "ec2:ModifyVpcAttribute",
+        "ec2:CreateSubnet",
+        "ec2:DeleteSubnet",
+        "ec2:DescribeSubnets",
+        "ec2:CreateInternetGateway",
+        "ec2:DeleteInternetGateway",
+        "ec2:AttachInternetGateway",
+        "ec2:DetachInternetGateway",
+        "ec2:DescribeInternetGateways",
+        "ec2:CreateNatGateway",
+        "ec2:DeleteNatGateway",
+        "ec2:DescribeNatGateways",
+        "ec2:AllocateAddress",
+        "ec2:ReleaseAddress",
+        "ec2:DescribeAddresses",
+        "ec2:CreateRouteTable",
+        "ec2:DeleteRouteTable",
+        "ec2:DescribeRouteTables",
+        "ec2:CreateRoute",
+        "ec2:DeleteRoute",
+        "ec2:AssociateRouteTable",
+        "ec2:DisassociateRouteTable"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecurityGroupManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSecurityGroup",
+        "ec2:DeleteSecurityGroup",
+        "ec2:DescribeSecurityGroups",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:CreateTags",
+        "ec2:DeleteTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RDSManagement",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBInstance",
+        "rds:DeleteDBInstance",
+        "rds:DescribeDBInstances",
+        "rds:ModifyDBInstance",
+        "rds:CreateDBSubnetGroup",
+        "rds:DeleteDBSubnetGroup",
+        "rds:DescribeDBSubnetGroups",
+        "rds:AddTagsToResource",
+        "rds:ListTagsForResource",
+        "rds:CreateDBSnapshot",
+        "rds:DeleteDBSnapshot",
+        "rds:DescribeDBSnapshots"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EKSAccess",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeCluster",
+        "eks:ListClusters"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMManagement",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:ListRoles",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:PassRole",
+        "iam:TagRole",
+        "iam:UntagRole"
+      ],
+      "Resource": "arn:aws:iam::*:role/devplatform-*"
+    },
+    {
+      "Sid": "SecretsManagement",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:TagResource"
+      ],
+      "Resource": "arn:aws:secretsmanager:*:*:secret:devplatform-*"
+    }
+  ]
+}
+```
+  </Tab>
+  <Tab title="State Backend Policy">
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3StateAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::devplatform-terraform-state/*"
+    },
+    {
+      "Sid": "S3BucketAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketVersioning"
+      ],
+      "Resource": "arn:aws:s3:::devplatform-terraform-state"
+    },
+    {
+      "Sid": "DynamoDBLocking",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:aws:dynamodb:*:*:table/devplatform-state-lock"
+    },
+    {
+      "Sid": "KMSEncryption",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:Encrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "arn:aws:kms:*:*:key/*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "s3.*.amazonaws.com",
+            "secretsmanager.*.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+  </Tab>
+</Tabs>
+
+### Permission Verification
+
+Verify your IAM permissions before running the CLI:
+
+```bash
+# Check your identity
+aws sts get-caller-identity
+
+# Example output:
+{
+  "UserId": "AIDAI23HXS....",
+  "Account": "123456789012",
+  "Arn": "arn:aws:iam::123456789012:user/john.doe"
+}
+
+# Test specific permissions
+aws ec2 describe-vpcs --dry-run
+aws rds describe-db-instances --max-records 1
+aws eks list-clusters
+
+# If any command fails with "UnauthorizedOperation", you're missing permissions
+```
+
+## IAM Roles for Service Accounts (IRSA)
+
+IRSA allows Kubernetes pods to assume IAM roles without storing AWS credentials.
+
+### IRSA Architecture
+
+```mermaid
+graph TB
+    subgraph "Kubernetes"
+        Pod[Application Pod]
+        SA[ServiceAccount]
+        SAAnnotation[Annotation:<br/>eks.amazonaws.com/role-arn]
+    end
+    
+    subgraph "AWS IAM"
+        IAMRole[IAM Role]
+        TrustPolicy[Trust Policy<br/>OIDC Provider]
+        IAMPolicy[IAM Policy<br/>AWS Permissions]
+    end
+    
+    subgraph "EKS"
+        OIDC[OIDC Provider]
+        Webhook[Mutating Webhook]
+    end
+    
+    Pod --> SA
+    SA --> SAAnnotation
+    SAAnnotation -.->|References| IAMRole
+    
+    IAMRole --> TrustPolicy
+    IAMRole --> IAMPolicy
+    
+    TrustPolicy -.->|Trusts| OIDC
+    
+    Pod --> Webhook
+    Webhook --> OIDC
+    OIDC --> IAMRole
+    
+    IAMRole --> AWSServices[AWS Services<br/>S3, Secrets Manager, RDS]
+    
+    style OIDC fill:#FF9900
+    style IAMRole fill:#FF9900
+```
+
+### IRSA Token Exchange Flow
+
+```mermaid
+sequenceDiagram
+    participant Pod as Application Pod
+    participant Webhook as Mutating Webhook
+    participant OIDC as OIDC Provider
+    participant STS as AWS STS
+    participant AWS as AWS Service
+    
+    Pod->>Webhook: Pod Creation
+    Webhook->>Webhook: Inject OIDC Token
+    Webhook-->>Pod: Token Mounted at<br/>/var/run/secrets/eks.amazonaws.com/serviceaccount/token
+    
+    Pod->>Pod: Application Starts
+    Pod->>Pod: Read OIDC Token
+    
+    Pod->>STS: AssumeRoleWithWebIdentity
+    Note over Pod,STS: OIDC Token + IAM Role ARN
+    
+    STS->>OIDC: Validate Token
+    OIDC-->>STS: Token Valid
+    
+    STS->>STS: Check Trust Policy
+    STS-->>Pod: Temporary AWS Credentials<br/>(Access Key, Secret, Session Token)
+    
+    Pod->>AWS: API Call with Credentials
+    AWS->>AWS: Validate Credentials
+    AWS->>AWS: Check IAM Policy
+    AWS-->>Pod: API Response
+```
+
+### Setting Up IRSA
+
+<Steps>
+  <Step title="Create IAM OIDC Provider">
+```bash
+# Get OIDC issuer URL from EKS cluster
+OIDC_URL=$(aws eks describe-cluster \
+  --name my-cluster \
+  --query "cluster.identity.oidc.issuer" \
+  --output text)
+
+echo $OIDC_URL
+# https://oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE
+
+# Create OIDC provider
+aws iam create-open-id-connect-provider \
+  --url $OIDC_URL \
+  --client-id-list sts.amazonaws.com \
+  --thumbprint-list 9e99a48a9960b14926bb7f3b02e22da2b0ab7280
+```
+  </Step>
+
+  <Step title="Create IAM Role with Trust Policy">
+```bash
+# Create trust policy document
+cat > trust-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE:sub": "system:serviceaccount:myapp-dev:myapp-sa",
+          "oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE:aud": "sts.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+EOF
+
+# Create IAM role
+aws iam create-role \
+  --role-name myapp-dev-pod-role \
+  --assume-role-policy-document file://trust-policy.json
+```
+  </Step>
+
+  <Step title="Attach IAM Policy to Role">
+```bash
+# Create permission policy
+cat > permissions-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:123456789012:secret:myapp-dev-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::myapp-dev-bucket/*"
+    }
+  ]
+}
+EOF
+
+# Attach policy to role
+aws iam put-role-policy \
+  --role-name myapp-dev-pod-role \
+  --policy-name myapp-dev-permissions \
+  --policy-document file://permissions-policy.json
+```
+  </Step>
+
+  <Step title="Create Kubernetes ServiceAccount">
+```yaml
+# serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: myapp-sa
+  namespace: myapp-dev
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/myapp-dev-pod-role
+```
+
+```bash
+# Apply ServiceAccount
+kubectl apply -f serviceaccount.yaml
+```
+  </Step>
+
+  <Step title="Use ServiceAccount in Pod">
+```yaml
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: myapp-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      serviceAccountName: myapp-sa  # Use IRSA-enabled ServiceAccount
+      containers:
+      - name: myapp
+        image: myapp:latest
+        env:
+        - name: AWS_REGION
+          value: us-east-1
+        # AWS SDK automatically uses IRSA credentials
+```
+
+```bash
+# Apply Deployment
+kubectl apply -f deployment.yaml
+
+# Verify IRSA is working
+kubectl exec -n myapp-dev deployment/myapp -- \
+  aws sts get-caller-identity
+
+# Should show the IAM role ARN
+{
+  "UserId": "AROAI23HXS....:botocore-session-1234567890",
+  "Account": "123456789012",
+  "Arn": "arn:aws:sts::123456789012:assumed-role/myapp-dev-pod-role/botocore-session-1234567890"
+}
+```
+  </Step>
+</Steps>
+
+### IRSA Best Practices
+
+<CardGroup cols={2}>
+  <Card title="One Role Per ServiceAccount" icon="user">
+    Create separate IAM roles for each ServiceAccount to maintain least privilege
+  </Card>
+  <Card title="Namespace-Specific Roles" icon="layer-group">
+    Include namespace in trust policy condition to prevent cross-namespace access
+  </Card>
+  <Card title="Minimal Permissions" icon="shield-check">
+    Grant only the AWS permissions required for the specific application
+  </Card>
+  <Card title="Regular Audits" icon="magnifying-glass">
+    Periodically review and remove unused IAM roles and permissions
+  </Card>
+</CardGroup>
+
+## Troubleshooting Authentication
+
+<AccordionGroup>
+  <Accordion title="Credentials Not Found">
+    
+**Error:**
+```
+Error: No valid AWS credentials found
+Unable to locate credentials. You can configure credentials by running "aws configure".
+```
+
+**Solutions:**
+
+1. Configure AWS CLI:
+```bash
+aws configure
+```
+
+2. Set environment variables:
+```bash
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=us-east-1
+```
+
+3. Verify credentials are loaded:
+```bash
+aws sts get-caller-identity
+```
+
+  </Accordion>
+
+  <Accordion title="Insufficient Permissions">
+    
+**Error:**
+```
+Error: UnauthorizedOperation: You are not authorized to perform this operation
+```
+
+**Solutions:**
+
+1. Check your IAM permissions:
+```bash
+aws iam get-user-policy --user-name your-username --policy-name your-policy
+```
+
+2. Verify you have the required policies attached
+3. Contact your AWS administrator to grant necessary permissions
+4. Use `--dry-run` flag to test permissions without making changes:
+```bash
+devplatform create --app myapp --env dev --dry-run
+```
+
+  </Accordion>
+
+  <Accordion title="Expired Credentials">
+    
+**Error:**
+```
+Error: ExpiredToken: The security token included in the request is expired
+```
+
+**Solutions:**
+
+1. For temporary credentials, refresh your session:
+```bash
+# If using MFA
+aws sts get-session-token --serial-number arn:aws:iam::123456789012:mfa/john.doe --token-code 123456
+
+# If using assumed role
+aws sts assume-role --role-arn arn:aws:iam::123456789012:role/MyRole --role-session-name my-session
+```
+
+2. For AWS CLI profiles with role assumption, re-run the command (it will auto-refresh)
+
+3. For static credentials, they don't expire - check if they were rotated
+
+  </Accordion>
+
+  <Accordion title="IRSA Not Working">
+    
+**Error:**
+```
+Error: WebIdentityErr: failed to retrieve credentials
+```
+
+**Solutions:**
+
+1. Verify OIDC provider exists:
+```bash
+aws iam list-open-id-connect-providers
+```
+
+2. Check ServiceAccount annotation:
+```bash
+kubectl get sa myapp-sa -n myapp-dev -o yaml
+# Should have: eks.amazonaws.com/role-arn annotation
+```
+
+3. Verify trust policy allows the ServiceAccount:
+```bash
+aws iam get-role --role-name myapp-dev-pod-role --query 'Role.AssumeRolePolicyDocument'
+```
+
+4. Check pod has the token mounted:
+```bash
+kubectl exec -n myapp-dev deployment/myapp -- \
+  ls -la /var/run/secrets/eks.amazonaws.com/serviceaccount/
+```
+
+5. Verify webhook is running:
+```bash
+kubectl get pods -n kube-system | grep eks-pod-identity-webhook
+```
+
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use IAM Roles" icon="user-shield">
+    Prefer IAM roles over static credentials for better security and automatic rotation
+  </Card>
+  <Card title="Enable MFA" icon="mobile">
+    Require multi-factor authentication for human users accessing AWS
+  </Card>
+  <Card title="Rotate Credentials" icon="rotate">
+    Regularly rotate access keys (every 90 days) and use temporary credentials when possible
+  </Card>
+  <Card title="Least Privilege" icon="shield-halved">
+    Grant only the minimum permissions required for each user or application
+  </Card>
+  <Card title="Use IRSA for Pods" icon="dharmachakra">
+    Never store AWS credentials in Kubernetes Secrets - use IRSA instead
+  </Card>
+  <Card title="Monitor Access" icon="eye">
+    Enable CloudTrail logging and monitor for suspicious authentication attempts
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AWS Networking" icon="network-wired" href="/aws/networking">
+    Configure VPC, subnets, and security groups
+  </Card>
+  <Card title="AWS Database" icon="database" href="/aws/database">
+    Set up RDS with proper IAM authentication
+  </Card>
+  <Card title="Security Overview" icon="shield" href="/security/overview">
+    Learn about comprehensive security practices
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/guides/troubleshooting">
+    Common authentication issues and solutions
+  </Card>
+</CardGroup>
+

@@ -1,0 +1,204 @@
+---
+title: 'Azure Kubernetes (AKS)'
+description: 'AKS namespace management, pod deployment, and Kubernetes resource configuration for DevPlatform CLI'
+icon: 'dharmachakra'
+---
+
+DevPlatform CLI deploys applications to Azure Kubernetes Service using Helm charts, with automatic namespace creation, RBAC configuration, and resource management.
+
+## Overview
+
+Each environment gets a dedicated Kubernetes namespace in a shared AKS cluster, with resource quotas, network policies, and service accounts configured automatically.
+
+<CardGroup cols={3}>
+  <Card title="Namespace Setup" icon="layer-group" href="#namespace-configuration">
+    Isolated namespaces with resource quotas
+  </Card>
+  <Card title="Pod Deployment" icon="cube" href="#pod-deployment">
+    Helm-based application deployment
+  </Card>
+  <Card title="Workload Identity" icon="user-lock" href="#workload-identity">
+    Azure AD integration for pods
+  </Card>
+</CardGroup>
+
+## Namespace Configuration
+
+### Creating Namespaces
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: myapp-dev
+  labels:
+    app: myapp
+    environment: dev
+    managed-by: devplatform-cli
+  annotations:
+    devplatform.io/created-at: "2024-01-15T10:30:00Z"
+```
+
+### Resource Quotas
+
+<Tabs>
+  <Tab title="Development">
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: myapp-dev-quota
+  namespace: myapp-dev
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"
+```
+  </Tab>
+  <Tab title="Production">
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: myapp-prod-quota
+  namespace: myapp-prod
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: 20Gi
+    limits.cpu: "20"
+    limits.memory: 40Gi
+    pods: "50"
+```
+  </Tab>
+</Tabs>
+
+## Pod Deployment
+
+### Deployment Configuration
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: myapp-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: myapp-sa
+      containers:
+      - name: myapp
+        image: myapp:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+```
+
+## Workload Identity
+
+### ServiceAccount with Workload Identity
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: myapp-sa
+  namespace: myapp-dev
+  annotations:
+    azure.workload.identity/client-id: "abc123-def456"
+  labels:
+    azure.workload.identity/use: "true"
+```
+
+## Ingress with Application Gateway
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp
+  namespace: myapp-dev
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+  - host: myapp-dev.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp
+            port:
+              number: 80
+```
+
+## Accessing the Cluster
+
+```bash
+# Update kubeconfig for AKS cluster
+az aks get-credentials \
+  --name shared-cluster \
+  --resource-group devplatform-rg
+
+# Verify access
+kubectl get nodes
+
+# View pods
+kubectl get pods -n myapp-dev
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Set Resource Limits" icon="gauge">
+    Always define CPU and memory requests/limits
+  </Card>
+  <Card title="Use Health Checks" icon="heart-pulse">
+    Implement liveness and readiness probes
+  </Card>
+  <Card title="Enable HPA" icon="arrows-up-down">
+    Use Horizontal Pod Autoscaling for production
+  </Card>
+  <Card title="Use Workload Identity" icon="key">
+    Never store Azure credentials in pods
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Security Overview" icon="shield" href="/security/overview">
+    Kubernetes security best practices
+  </Card>
+  <Card title="CI/CD Integration" icon="code-branch" href="/advanced/ci-cd-integration">
+    Automate deployments
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/guides/troubleshooting">
+    Monitor and troubleshoot AKS
+  </Card>
+  <Card title="Cost Optimization" icon="dollar-sign" href="/guides/cost-optimization">
+    Optimize AKS costs
+  </Card>
+</CardGroup>
+

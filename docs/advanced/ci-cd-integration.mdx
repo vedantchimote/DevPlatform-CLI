@@ -1,0 +1,518 @@
+---
+title: 'CI/CD Integration'
+description: 'Automate deployments with CI/CD pipelines'
+icon: 'code-branch'
+---
+
+Integrate DevPlatform CLI with popular CI/CD platforms for automated deployments.
+
+## GitHub Actions
+
+<Tabs>
+  <Tab title="Deploy on Push">
+    ```yaml
+    # .github/workflows/deploy.yml
+    name: Deploy to Dev
+    
+    on:
+      push:
+        branches: [main]
+    
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v3
+          
+          - name: Configure AWS Credentials
+            uses: aws-actions/configure-aws-credentials@v2
+            with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: us-east-1
+          
+          - name: Install DevPlatform CLI
+            run: pip install devplatform-cli
+          
+          - name: Deploy
+            run: |
+              devplatform update \
+                --app myapp \
+                --env dev \
+                --image myapp:${{ github.sha }}
+    ```
+  </Tab>
+  
+  <Tab title="Deploy on Tag">
+    ```yaml
+    # .github/workflows/deploy-prod.yml
+    name: Deploy to Production
+    
+    on:
+      push:
+        tags:
+          - 'v*'
+    
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+          - uses: actions/checkout@v3
+          
+          - name: Extract version
+            id: version
+            run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          
+          - name: Configure AWS Credentials
+            uses: aws-actions/configure-aws-credentials@v2
+            with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: us-east-1
+          
+          - name: Install DevPlatform CLI
+            run: pip install devplatform-cli
+          
+          - name: Deploy to Production
+            run: |
+              devplatform update \
+                --app myapp \
+                --env prod \
+                --image myapp:${{ steps.version.outputs.VERSION }}
+          
+          - name: Verify Deployment
+            run: |
+              kubectl rollout status deployment/myapp -n prod-myapp
+    ```
+  </Tab>
+  
+  <Tab title="Multi-Environment">
+    ```yaml
+    # .github/workflows/deploy-multi.yml
+    name: Multi-Environment Deploy
+    
+    on:
+      workflow_dispatch:
+        inputs:
+          environment:
+            description: 'Environment to deploy'
+            required: true
+            type: choice
+            options:
+              - dev
+              - staging
+              - prod
+          version:
+            description: 'Version to deploy'
+            required: true
+    
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: ${{ github.event.inputs.environment }}
+        steps:
+          - uses: actions/checkout@v3
+          
+          - name: Configure AWS Credentials
+            uses: aws-actions/configure-aws-credentials@v2
+            with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: us-east-1
+          
+          - name: Install DevPlatform CLI
+            run: pip install devplatform-cli
+          
+          - name: Deploy
+            run: |
+              devplatform update \
+                --app myapp \
+                --env ${{ github.event.inputs.environment }} \
+                --image myapp:${{ github.event.inputs.version }}
+    ```
+  </Tab>
+</Tabs>
+
+## GitLab CI
+
+<Tabs>
+  <Tab title="Basic Pipeline">
+    ```yaml
+    # .gitlab-ci.yml
+    stages:
+      - build
+      - deploy
+    
+    variables:
+      APP_NAME: myapp
+    
+    build:
+      stage: build
+      image: docker:latest
+      services:
+        - docker:dind
+      script:
+        - docker build -t $APP_NAME:$CI_COMMIT_SHA .
+        - docker push $APP_NAME:$CI_COMMIT_SHA
+      only:
+        - main
+    
+    deploy_dev:
+      stage: deploy
+      image: python:3.11
+      before_script:
+        - pip install devplatform-cli
+        - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+        - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+        - aws configure set region us-east-1
+      script:
+        - devplatform update --app $APP_NAME --env dev --image $APP_NAME:$CI_COMMIT_SHA
+      only:
+        - main
+    
+    deploy_prod:
+      stage: deploy
+      image: python:3.11
+      before_script:
+        - pip install devplatform-cli
+        - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+        - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+        - aws configure set region us-east-1
+      script:
+        - devplatform update --app $APP_NAME --env prod --image $APP_NAME:$CI_COMMIT_TAG
+      only:
+        - tags
+      when: manual
+    ```
+  </Tab>
+  
+  <Tab title="With Environments">
+    ```yaml
+    # .gitlab-ci.yml
+    deploy_staging:
+      stage: deploy
+      image: python:3.11
+      environment:
+        name: staging
+        url: https://myapp-staging.example.com
+      before_script:
+        - pip install devplatform-cli
+      script:
+        - devplatform update --app myapp --env staging --image myapp:$CI_COMMIT_SHA
+      only:
+        - main
+    
+    deploy_production:
+      stage: deploy
+      image: python:3.11
+      environment:
+        name: production
+        url: https://myapp.example.com
+      before_script:
+        - pip install devplatform-cli
+      script:
+        - devplatform update --app myapp --env prod --image myapp:$CI_COMMIT_TAG
+      only:
+        - tags
+      when: manual
+    ```
+  </Tab>
+</Tabs>
+
+## Jenkins
+
+```groovy
+// Jenkinsfile
+pipeline {
+    agent any
+    
+    environment {
+        APP_NAME = 'myapp'
+        AWS_REGION = 'us-east-1'
+    }
+    
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    docker.build("${APP_NAME}:${env.GIT_COMMIT}")
+                }
+            }
+        }
+        
+        stage('Deploy to Dev') {
+            when {
+                branch 'main'
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh '''
+                        pip install devplatform-cli
+                        devplatform update \
+                            --app ${APP_NAME} \
+                            --env dev \
+                            --image ${APP_NAME}:${GIT_COMMIT}
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                tag pattern: "v\\d+\\.\\d+\\.\\d+", comparator: "REGEXP"
+            }
+            steps {
+                input message: 'Deploy to production?', ok: 'Deploy'
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh '''
+                        pip install devplatform-cli
+                        devplatform update \
+                            --app ${APP_NAME} \
+                            --env prod \
+                            --image ${APP_NAME}:${TAG_NAME}
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Deployment successful!'
+        }
+        failure {
+            echo 'Deployment failed!'
+        }
+    }
+}
+```
+
+## Azure DevOps
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  branches:
+    include:
+      - main
+  tags:
+    include:
+      - v*
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  appName: 'myapp'
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildImage
+        steps:
+          - task: Docker@2
+            inputs:
+              command: 'buildAndPush'
+              repository: $(appName)
+              tags: $(Build.SourceVersion)
+  
+  - stage: DeployDev
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployToDev
+        environment: 'dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: 'Azure-Connection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      pip install devplatform-cli
+                      devplatform update \
+                        --app $(appName) \
+                        --env dev \
+                        --image $(appName):$(Build.SourceVersion)
+  
+  - stage: DeployProd
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'))
+    jobs:
+      - deployment: DeployToProd
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: 'Azure-Connection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      pip install devplatform-cli
+                      VERSION=$(echo $(Build.SourceBranch) | sed 's/refs\/tags\///')
+                      devplatform update \
+                        --app $(appName) \
+                        --env prod \
+                        --image $(appName):$VERSION
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Environment-Specific Credentials">
+    Store credentials securely in CI/CD platform:
+    
+    - GitHub: Repository Secrets
+    - GitLab: CI/CD Variables
+    - Jenkins: Credentials Plugin
+    - Azure DevOps: Variable Groups
+  </Accordion>
+  
+  <Accordion title="Implement Approval Gates">
+    Require manual approval for production deployments:
+    
+    ```yaml
+    # GitHub Actions
+    environment: production  # Requires approval in settings
+    
+    # GitLab CI
+    when: manual
+    
+    # Jenkins
+    input message: 'Deploy to production?'
+    ```
+  </Accordion>
+  
+  <Accordion title="Add Deployment Verification">
+    ```bash
+    # Verify deployment succeeded
+    kubectl rollout status deployment/myapp -n prod-myapp
+    
+    # Run smoke tests
+    curl https://myapp.example.com/health
+    
+    # Check metrics
+    kubectl top pods -n prod-myapp
+    ```
+  </Accordion>
+  
+  <Accordion title="Implement Rollback">
+    ```yaml
+    - name: Rollback on Failure
+      if: failure()
+      run: |
+        helm rollback myapp -n prod-myapp
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Complete Example: GitHub Actions with Tests
+
+```yaml
+# .github/workflows/complete-pipeline.yml
+name: Complete CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run Tests
+        run: npm test
+      
+      - name: Run Linter
+        run: npm run lint
+  
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build Docker Image
+        run: docker build -t myapp:${{ github.sha }} .
+      
+      - name: Push to Registry
+        run: docker push myapp:${{ github.sha }}
+  
+  deploy_dev:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Deploy
+        run: |
+          pip install devplatform-cli
+          devplatform update --app myapp --env dev --image myapp:${{ github.sha }}
+      
+      - name: Verify
+        run: kubectl rollout status deployment/myapp -n dev-myapp
+  
+  deploy_prod:
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Deploy
+        run: |
+          pip install devplatform-cli
+          devplatform update --app myapp --env prod --image myapp:${{ github.event.release.tag_name }}
+      
+      - name: Verify
+        run: kubectl rollout status deployment/myapp -n prod-myapp
+      
+      - name: Smoke Tests
+        run: |
+          curl -f https://myapp.example.com/health || exit 1
+      
+      - name: Rollback on Failure
+        if: failure()
+        run: helm rollback myapp -n prod-myapp
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Multi-Environment Setup" icon="layer-group" href="/guides/multi-environment">
+    Configure multiple environments
+  </Card>
+  <Card title="Disaster Recovery" icon="life-ring" href="/advanced/disaster-recovery">
+    Backup and recovery strategies
+  </Card>
+</CardGroup>

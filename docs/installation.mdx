@@ -1,0 +1,543 @@
+---
+title: 'Installation'
+description: 'Install DevPlatform CLI on your system'
+icon: 'download'
+---
+
+## System Requirements
+
+<CardGroup cols={2}>
+  <Card title="Operating System" icon="computer">
+    - macOS 10.15+
+    - Linux (Ubuntu 20.04+, CentOS 8+, Debian 10+)
+    - Windows 10+ (with WSL2 recommended)
+  </Card>
+  <Card title="Architecture" icon="microchip">
+    - x86_64 (amd64)
+    - ARM64 (Apple Silicon, ARM servers)
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+Before installing DevPlatform CLI, ensure you have the following tools installed:
+
+### Required Dependencies
+
+<AccordionGroup>
+  <Accordion title="Terraform (1.5+)" icon="terraform">
+    **macOS:**
+    ```bash
+    brew tap hashicorp/tap
+    brew install hashicorp/tap/terraform
+    ```
+
+    **Linux:**
+    ```bash
+    wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+    sudo apt update && sudo apt install terraform
+    ```
+
+    **Windows:**
+    ```powershell
+    choco install terraform
+    ```
+
+    Verify installation:
+    ```bash
+    terraform --version
+    ```
+  </Accordion>
+
+  <Accordion title="Helm (3.0+)" icon="helm">
+    **macOS:**
+    ```bash
+    brew install helm
+    ```
+
+    **Linux:**
+    ```bash
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    ```
+
+    **Windows:**
+    ```powershell
+    choco install kubernetes-helm
+    ```
+
+    Verify installation:
+    ```bash
+    helm version
+    ```
+  </Accordion>
+
+  <Accordion title="kubectl (1.27+)" icon="kubernetes">
+    **macOS:**
+    ```bash
+    brew install kubectl
+    ```
+
+    **Linux:**
+    ```bash
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    ```
+
+    **Windows:**
+    ```powershell
+    choco install kubernetes-cli
+    ```
+
+    Verify installation:
+    ```bash
+    kubectl version --client
+    ```
+  </Accordion>
+
+  <Accordion title="AWS CLI (2.x) - For AWS Deployments" icon="aws">
+    **macOS:**
+    ```bash
+    brew install awscli
+    ```
+
+    **Linux:**
+    ```bash
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip awscliv2.zip
+    sudo ./aws/install
+    ```
+
+    **Windows:**
+    ```powershell
+    msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
+    ```
+
+    Verify installation:
+    ```bash
+    aws --version
+    ```
+  </Accordion>
+
+  <Accordion title="Azure CLI - For Azure Deployments" icon="microsoft">
+    **macOS:**
+    ```bash
+    brew install azure-cli
+    ```
+
+    **Linux:**
+    ```bash
+    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    ```
+
+    **Windows:**
+    ```powershell
+    choco install azure-cli
+    ```
+
+    Verify installation:
+    ```bash
+    az --version
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Install DevPlatform CLI
+
+<Tabs>
+  <Tab title="macOS (Homebrew)">
+    ### Using Homebrew
+
+    ```bash
+    # Add the DevPlatform tap
+    brew tap your-org/devplatform
+
+    # Install DevPlatform CLI
+    brew install devplatform-cli
+
+    # Verify installation
+    devplatform version
+    ```
+
+    ### Update to Latest Version
+
+    ```bash
+    brew upgrade devplatform-cli
+    ```
+  </Tab>
+
+  <Tab title="Linux (Script)">
+    ### Using Install Script
+
+    ```bash
+    # Download and run install script
+    curl -fsSL https://get.devplatform.io | sh
+
+    # The script will:
+    # 1. Detect your OS and architecture
+    # 2. Download the appropriate binary
+    # 3. Install to /usr/local/bin
+    # 4. Set executable permissions
+
+    # Verify installation
+    devplatform version
+    ```
+
+    ### Manual Installation
+
+    ```bash
+    # Download the latest release
+    VERSION="v1.0.0"
+    ARCH="linux_amd64"  # or linux_arm64
+    wget https://github.com/your-org/devplatform-cli/releases/download/${VERSION}/devplatform_${ARCH}.tar.gz
+
+    # Extract and install
+    tar -xzf devplatform_${ARCH}.tar.gz
+    sudo mv devplatform /usr/local/bin/
+    sudo chmod +x /usr/local/bin/devplatform
+
+    # Verify installation
+    devplatform version
+    ```
+  </Tab>
+
+  <Tab title="Windows (Scoop)">
+    ### Using Scoop
+
+    ```powershell
+    # Add DevPlatform bucket
+    scoop bucket add devplatform https://github.com/your-org/scoop-bucket
+
+    # Install DevPlatform CLI
+    scoop install devplatform-cli
+
+    # Verify installation
+    devplatform version
+    ```
+
+    ### Using Chocolatey
+
+    ```powershell
+    # Install DevPlatform CLI
+    choco install devplatform-cli
+
+    # Verify installation
+    devplatform version
+    ```
+
+    ### Manual Installation
+
+    1. Download the Windows binary from [GitHub Releases](https://github.com/your-org/devplatform-cli/releases)
+    2. Extract the ZIP file
+    3. Add the directory to your PATH
+    4. Verify: `devplatform version`
+  </Tab>
+
+  <Tab title="From Source">
+    ### Build from Source
+
+    **Prerequisites:**
+    - Go 1.21 or higher
+
+    ```bash
+    # Clone the repository
+    git clone https://github.com/your-org/devplatform-cli.git
+    cd devplatform-cli
+
+    # Build the binary
+    go build -o devplatform
+
+    # Install to system path
+    sudo mv devplatform /usr/local/bin/
+
+    # Verify installation
+    devplatform version
+    ```
+
+    ### Development Build
+
+    ```bash
+    # Install with go install
+    go install github.com/your-org/devplatform-cli@latest
+
+    # Verify installation
+    devplatform version
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    ### Using Docker
+
+    ```bash
+    # Pull the Docker image
+    docker pull devplatform/cli:latest
+
+    # Create an alias for convenience
+    alias devplatform='docker run --rm -it \
+      -v ~/.aws:/root/.aws \
+      -v ~/.azure:/root/.azure \
+      -v ~/.kube:/root/.kube \
+      -v $(pwd):/workspace \
+      devplatform/cli:latest'
+
+    # Verify installation
+    devplatform version
+    ```
+
+    ### Docker Compose
+
+    ```yaml
+    version: '3.8'
+    services:
+      devplatform:
+        image: devplatform/cli:latest
+        volumes:
+          - ~/.aws:/root/.aws
+          - ~/.azure:/root/.azure
+          - ~/.kube:/root/.kube
+          - ./:/workspace
+        working_dir: /workspace
+    ```
+
+    Usage:
+    ```bash
+    docker-compose run devplatform create --app myapp --env dev
+    ```
+  </Tab>
+</Tabs>
+
+## Post-Installation Setup
+
+### 1. Verify Installation
+
+```bash
+devplatform version --check-deps
+```
+
+This command checks:
+- DevPlatform CLI version
+- Terraform version
+- Helm version
+- kubectl version
+- AWS CLI version (if installed)
+- Azure CLI version (if installed)
+
+Expected output:
+
+```
+DevPlatform CLI: v1.0.0
+✓ Terraform: v1.5.0 (minimum: v1.5.0)
+✓ Helm: v3.12.0 (minimum: v3.0.0)
+✓ kubectl: v1.27.0 (minimum: v1.27.0)
+✓ AWS CLI: v2.13.0 (minimum: v2.0.0)
+✓ Azure CLI: v2.50.0 (minimum: v2.0.0)
+
+All dependencies satisfied!
+```
+
+### 2. Enable Shell Completion
+
+<Tabs>
+  <Tab title="Bash">
+    ```bash
+    # Add to ~/.bashrc
+    echo 'source <(devplatform completion bash)' >> ~/.bashrc
+    source ~/.bashrc
+    ```
+  </Tab>
+
+  <Tab title="Zsh">
+    ```bash
+    # Add to ~/.zshrc
+    echo 'source <(devplatform completion zsh)' >> ~/.zshrc
+    source ~/.zshrc
+    ```
+  </Tab>
+
+  <Tab title="Fish">
+    ```bash
+    devplatform completion fish | source
+    ```
+  </Tab>
+
+  <Tab title="PowerShell">
+    ```powershell
+    # Add to PowerShell profile
+    devplatform completion powershell | Out-String | Invoke-Expression
+    ```
+  </Tab>
+</Tabs>
+
+### 3. Create Configuration Directory
+
+```bash
+mkdir -p ~/.devplatform
+```
+
+### 4. Configure Cloud Credentials
+
+<Tabs>
+  <Tab title="AWS">
+    ```bash
+    # Configure AWS credentials
+    aws configure
+
+    # Or set environment variables
+    export AWS_ACCESS_KEY_ID="your-access-key"
+    export AWS_SECRET_ACCESS_KEY="your-secret-key"
+    export AWS_DEFAULT_REGION="us-east-1"
+
+    # Verify
+    aws sts get-caller-identity
+    ```
+  </Tab>
+
+  <Tab title="Azure">
+    ```bash
+    # Login to Azure
+    az login
+
+    # Set subscription
+    az account set --subscription "your-subscription-id"
+
+    # Verify
+    az account show
+    ```
+  </Tab>
+</Tabs>
+
+## Upgrade DevPlatform CLI
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    brew upgrade devplatform-cli
+    ```
+  </Tab>
+
+  <Tab title="Linux">
+    ```bash
+    curl -fsSL https://get.devplatform.io | sh
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    ```powershell
+    # Scoop
+    scoop update devplatform-cli
+
+    # Chocolatey
+    choco upgrade devplatform-cli
+    ```
+  </Tab>
+</Tabs>
+
+## Uninstall DevPlatform CLI
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    brew uninstall devplatform-cli
+    brew untap your-org/devplatform
+    ```
+  </Tab>
+
+  <Tab title="Linux">
+    ```bash
+    sudo rm /usr/local/bin/devplatform
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    ```powershell
+    # Scoop
+    scoop uninstall devplatform-cli
+
+    # Chocolatey
+    choco uninstall devplatform-cli
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found">
+    Ensure `/usr/local/bin` is in your PATH:
+
+    ```bash
+    echo $PATH
+    export PATH="/usr/local/bin:$PATH"
+    ```
+
+    Add to your shell profile (~/.bashrc, ~/.zshrc, etc.) to make it permanent.
+  </Accordion>
+
+  <Accordion title="Permission denied">
+    Make the binary executable:
+
+    ```bash
+    chmod +x /usr/local/bin/devplatform
+    ```
+
+    Or install with sudo:
+
+    ```bash
+    sudo mv devplatform /usr/local/bin/
+    ```
+  </Accordion>
+
+  <Accordion title="Dependency version mismatch">
+    Update dependencies to meet minimum requirements:
+
+    ```bash
+    # Check current versions
+    devplatform version --check-deps
+
+    # Update Terraform
+    brew upgrade terraform  # macOS
+    # or download from https://www.terraform.io/downloads
+
+    # Update Helm
+    brew upgrade helm  # macOS
+    # or download from https://helm.sh/docs/intro/install/
+
+    # Update kubectl
+    brew upgrade kubectl  # macOS
+    # or download from https://kubernetes.io/docs/tasks/tools/
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Deploy your first environment
+  </Card>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/concepts/configuration"
+  >
+    Learn about configuration options
+  </Card>
+  <Card
+    title="AWS Setup"
+    icon="aws"
+    href="/aws/overview"
+  >
+    Configure for AWS deployments
+  </Card>
+  <Card
+    title="Azure Setup"
+    icon="microsoft"
+    href="/azure/overview"
+  >
+    Configure for Azure deployments
+  </Card>
+</CardGroup>

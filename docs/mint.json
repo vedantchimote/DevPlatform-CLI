@@ -1,0 +1,137 @@
+{
+  "name": "DevPlatform CLI",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@devplatform.io"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "GitHub",
+    "url": "https://github.com/your-org/devplatform-cli"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference-interactive"
+    },
+    {
+      "name": "Guides",
+      "url": "guides"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Documentation",
+      "icon": "book-open-cover",
+      "url": "https://docs.devplatform.io"
+    },
+    {
+      "name": "Community",
+      "icon": "slack",
+      "url": "https://slack.devplatform.io"
+    },
+    {
+      "name": "Blog",
+      "icon": "newspaper",
+      "url": "https://blog.devplatform.io"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "installation"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/architecture",
+        "concepts/multi-cloud",
+        "concepts/workflows",
+        "concepts/state-management"
+      ]
+    },
+    {
+      "group": "AWS Deployment",
+      "pages": [
+        "aws/overview",
+        "aws/authentication",
+        "aws/networking",
+        "aws/database",
+        "aws/kubernetes"
+      ]
+    },
+    {
+      "group": "Azure Deployment",
+      "pages": [
+        "azure/overview",
+        "azure/authentication",
+        "azure/networking",
+        "azure/database",
+        "azure/kubernetes"
+      ]
+    },
+    {
+      "group": "Security",
+      "pages": [
+        "security/overview",
+        "security/authentication",
+        "security/rbac",
+        "security/encryption",
+        "security/audit-logging"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference-interactive/introduction",
+        "api-reference-interactive/create",
+        "api-reference-interactive/status",
+        "api-reference-interactive/destroy",
+        "api-reference-interactive/version"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/first-deployment",
+        "guides/multi-environment",
+        "guides/cost-optimization",
+        "guides/troubleshooting",
+        "guides/migration"
+      ]
+    },
+    {
+      "group": "Advanced",
+      "pages": [
+        "advanced/custom-modules",
+        "advanced/helm-customization",
+        "advanced/ci-cd-integration",
+        "advanced/disaster-recovery"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/your-org/devplatform-cli",
+    "linkedin": "https://www.linkedin.com/company/devplatform",
+    "twitter": "https://twitter.com/devplatform"
+  }
+}

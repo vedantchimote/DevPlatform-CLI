@@ -1,0 +1,550 @@
+---
+title: 'First Deployment'
+description: 'Step-by-step guide to deploy your first application with DevPlatform CLI'
+icon: 'rocket'
+---
+
+This guide walks you through deploying your first application using DevPlatform CLI on AWS or Azure.
+
+## Prerequisites
+
+<AccordionGroup>
+  <Accordion title="Cloud Provider Setup">
+    <Tabs>
+      <Tab title="AWS">
+        - AWS account with appropriate permissions
+        - AWS CLI installed and configured
+        - Valid AWS credentials
+        
+        ```bash
+        # Verify AWS CLI
+        aws --version
+        
+        # Configure credentials
+        aws configure
+        
+        # Test access
+        aws sts get-caller-identity
+        ```
+      </Tab>
+      <Tab title="Azure">
+        - Azure subscription with appropriate permissions
+        - Azure CLI installed and configured
+        - Valid Azure credentials
+        
+        ```bash
+        # Verify Azure CLI
+        az --version
+        
+        # Login to Azure
+        az login
+        
+        # Test access
+        az account show
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+  
+  <Accordion title="Local Tools">
+    Install required tools:
+    
+    - DevPlatform CLI
+    - kubectl (Kubernetes CLI)
+    - Terraform (optional, managed by CLI)
+    - Helm (optional, managed by CLI)
+    
+    ```bash
+    # Install DevPlatform CLI
+    pip install devplatform-cli
+    
+    # Verify installation
+    devplatform version
+    
+    # Install kubectl
+    # macOS
+    brew install kubectl
+    
+    # Linux
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+    ```
+  </Accordion>
+  
+  <Accordion title="Application Requirements">
+    - Application name (e.g., "payment-service")
+    - Environment name (e.g., "dev", "staging", "prod")
+    - Container image (optional, can use default)
+    - Database requirements (optional)
+  </Accordion>
+</AccordionGroup>
+
+## Step 1: Initialize Configuration
+
+<Steps>
+  <Step title="Create Configuration File">
+    Create a `.devplatform.yaml` file in your project root:
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```yaml
+        # .devplatform.yaml
+        provider: aws
+        
+        aws:
+          region: us-east-1
+          account_id: "123456789012"
+        
+        application:
+          name: my-app
+          environment: dev
+        
+        infrastructure:
+          vpc:
+            cidr: "10.0.0.0/16"
+          
+          database:
+            engine: postgres
+            version: "15.3"
+            instance_class: db.t3.micro
+          
+          kubernetes:
+            version: "1.28"
+            node_instance_type: t3.medium
+            node_count: 2
+        
+        deployment:
+          image: nginx:latest
+          replicas: 2
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```yaml
+        # .devplatform.yaml
+        provider: azure
+        
+        azure:
+          subscription_id: "12345678-1234-1234-1234-123456789012"
+          location: eastus
+          tenant_id: "87654321-4321-4321-4321-210987654321"
+        
+        application:
+          name: my-app
+          environment: dev
+        
+        infrastructure:
+          vnet:
+            cidr: "10.0.0.0/16"
+          
+          database:
+            engine: postgres
+            version: "15"
+            sku: B_Standard_B1ms
+          
+          kubernetes:
+            version: "1.28"
+            node_vm_size: Standard_D2s_v3
+            node_count: 2
+        
+        deployment:
+          image: nginx:latest
+          replicas: 2
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Validate Configuration">
+    Validate your configuration before deployment:
+    
+    ```bash
+    devplatform validate
+    ```
+    
+    Expected output:
+    ```
+    ✓ Configuration file found
+    ✓ Provider credentials valid
+    ✓ Required permissions verified
+    ✓ Configuration syntax valid
+    ✓ Resource names available
+    
+    Configuration is valid and ready for deployment
+    ```
+  </Step>
+</Steps>
+
+## Step 2: Deploy Infrastructure
+
+<Steps>
+  <Step title="Run Create Command">
+    Deploy your infrastructure:
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        devplatform create \
+          --app my-app \
+          --env dev \
+          --provider aws
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```bash
+        devplatform create \
+          --app my-app \
+          --env dev \
+          --provider azure
+        ```
+      </Tab>
+    </Tabs>
+    
+    <Note>
+    First deployment typically takes 15-20 minutes due to database and Kubernetes cluster provisioning.
+    </Note>
+  </Step>
+  
+  <Step title="Monitor Deployment Progress">
+    The CLI will show real-time progress:
+    
+    ```
+    🚀 Starting deployment for my-app (dev)
+    
+    [1/5] Validating configuration... ✓
+    [2/5] Provisioning network infrastructure...
+      ├─ Creating VPC/VNet... ✓
+      ├─ Creating subnets... ✓
+      └─ Configuring security groups... ✓
+    
+    [3/5] Provisioning database...
+      ├─ Creating RDS/Azure Database instance... ⏳ (8-10 minutes)
+      └─ Configuring backups... ✓
+    
+    [4/5] Provisioning Kubernetes cluster...
+      ├─ Creating EKS/AKS cluster... ⏳ (10-12 minutes)
+      ├─ Configuring node pool... ✓
+      └─ Installing cluster add-ons... ✓
+    
+    [5/5] Deploying application...
+      ├─ Installing Helm chart... ✓
+      ├─ Creating pods... ✓
+      └─ Configuring ingress... ✓
+    
+    ✅ Deployment completed successfully!
+    
+    Application URL: https://my-app-dev.example.com
+    Database Endpoint: my-app-dev.abc123.us-east-1.rds.amazonaws.com
+    Kubernetes Cluster: my-app-dev-eks
+    ```
+  </Step>
+  
+  <Step title="Verify Deployment">
+    Check deployment status:
+    
+    ```bash
+    devplatform status --app my-app --env dev
+    ```
+    
+    Expected output:
+    ```
+    Application: my-app
+    Environment: dev
+    Provider: aws
+    Region: us-east-1
+    
+    Infrastructure Status:
+    ├─ VPC: vpc-abc123 (ACTIVE)
+    ├─ Database: my-app-dev (AVAILABLE)
+    ├─ Kubernetes: my-app-dev-eks (ACTIVE)
+    └─ Load Balancer: my-app-dev-alb (ACTIVE)
+    
+    Application Status:
+    ├─ Namespace: dev-my-app
+    ├─ Deployment: my-app (2/2 replicas ready)
+    ├─ Pods: 2 running
+    └─ Service: my-app (LoadBalancer)
+    
+    Endpoints:
+    ├─ Application: https://my-app-dev.example.com
+    └─ Database: my-app-dev.abc123.us-east-1.rds.amazonaws.com:5432
+    ```
+  </Step>
+</Steps>
+
+## Step 3: Access Your Application
+
+<Tabs>
+  <Tab title="Via Load Balancer">
+    Access your application through the load balancer:
+    
+    ```bash
+    # Get load balancer URL
+    devplatform status --app my-app --env dev --output json | jq -r '.endpoints.application'
+    
+    # Test application
+    curl https://my-app-dev.example.com
+    ```
+  </Tab>
+  
+  <Tab title="Via kubectl">
+    Access Kubernetes resources directly:
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        # Configure kubectl
+        aws eks update-kubeconfig \
+          --name my-app-dev-eks \
+          --region us-east-1
+        
+        # Check pods
+        kubectl get pods -n dev-my-app
+        
+        # View logs
+        kubectl logs -n dev-my-app -l app=my-app
+        
+        # Port forward for local testing
+        kubectl port-forward -n dev-my-app svc/my-app 8080:80
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```bash
+        # Configure kubectl
+        az aks get-credentials \
+          --name my-app-dev-aks \
+          --resource-group my-app-dev-rg
+        
+        # Check pods
+        kubectl get pods -n dev-my-app
+        
+        # View logs
+        kubectl logs -n dev-my-app -l app=my-app
+        
+        # Port forward for local testing
+        kubectl port-forward -n dev-my-app svc/my-app 8080:80
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+  
+  <Tab title="Database Connection">
+    Connect to your database:
+    
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        # Get database credentials
+        DB_PASSWORD=$(aws secretsmanager get-secret-value \
+          --secret-id my-app-dev-db-password \
+          --query SecretString \
+          --output text)
+        
+        # Get database endpoint
+        DB_ENDPOINT=$(aws rds describe-db-instances \
+          --db-instance-identifier my-app-dev \
+          --query 'DBInstances[0].Endpoint.Address' \
+          --output text)
+        
+        # Connect via psql
+        psql "host=$DB_ENDPOINT port=5432 dbname=myapp user=admin password=$DB_PASSWORD sslmode=require"
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```bash
+        # Get database credentials
+        DB_PASSWORD=$(az keyvault secret show \
+          --vault-name my-app-dev-kv \
+          --name db-password \
+          --query value \
+          --output tsv)
+        
+        # Get database endpoint
+        DB_ENDPOINT=$(az postgres flexible-server show \
+          --name my-app-dev \
+          --resource-group my-app-dev-rg \
+          --query fullyQualifiedDomainName \
+          --output tsv)
+        
+        # Connect via psql
+        psql "host=$DB_ENDPOINT port=5432 dbname=myapp user=admin password=$DB_PASSWORD sslmode=require"
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+</Tabs>
+
+## Step 4: Deploy Your Application Code
+
+<Steps>
+  <Step title="Build Container Image">
+    Build and push your application image:
+    
+    <Tabs>
+      <Tab title="AWS ECR">
+        ```bash
+        # Login to ECR
+        aws ecr get-login-password --region us-east-1 | \
+          docker login --username AWS --password-stdin \
+          123456789012.dkr.ecr.us-east-1.amazonaws.com
+        
+        # Build image
+        docker build -t my-app:v1.0.0 .
+        
+        # Tag image
+        docker tag my-app:v1.0.0 \
+          123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:v1.0.0
+        
+        # Push image
+        docker push 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:v1.0.0
+        ```
+      </Tab>
+      <Tab title="Azure ACR">
+        ```bash
+        # Login to ACR
+        az acr login --name myappdevacr
+        
+        # Build image
+        docker build -t my-app:v1.0.0 .
+        
+        # Tag image
+        docker tag my-app:v1.0.0 \
+          myappdevacr.azurecr.io/my-app:v1.0.0
+        
+        # Push image
+        docker push myappdevacr.azurecr.io/my-app:v1.0.0
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Update Deployment">
+    Update your deployment with the new image:
+    
+    ```bash
+    # Update configuration
+    devplatform update \
+      --app my-app \
+      --env dev \
+      --image my-app:v1.0.0
+    
+    # Or update directly with kubectl
+    kubectl set image deployment/my-app \
+      my-app=123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:v1.0.0 \
+      -n dev-my-app
+    
+    # Watch rollout
+    kubectl rollout status deployment/my-app -n dev-my-app
+    ```
+  </Step>
+  
+  <Step title="Verify Update">
+    Verify the new version is running:
+    
+    ```bash
+    # Check pod image
+    kubectl get pods -n dev-my-app -o jsonpath='{.items[*].spec.containers[*].image}'
+    
+    # Check application version
+    curl https://my-app-dev.example.com/version
+    ```
+  </Step>
+</Steps>
+
+## Common First Deployment Issues
+
+<AccordionGroup>
+  <Accordion title="Credentials Not Found">
+    **Error**: `No AWS/Azure credentials found`
+    
+    **Solution**:
+    <Tabs>
+      <Tab title="AWS">
+        ```bash
+        aws configure
+        # Enter your credentials when prompted
+        ```
+      </Tab>
+      <Tab title="Azure">
+        ```bash
+        az login
+        # Follow browser authentication flow
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+  
+  <Accordion title="Insufficient Permissions">
+    **Error**: `User is not authorized to perform: <action>`
+    
+    **Solution**: Contact your cloud administrator to grant required permissions. See [Authentication Guide](/security/authentication) for required permissions.
+  </Accordion>
+  
+  <Accordion title="Resource Quota Exceeded">
+    **Error**: `You have exceeded your quota for <resource>`
+    
+    **Solution**:
+    - Delete unused resources
+    - Request quota increase from cloud provider
+    - Use smaller instance types
+  </Accordion>
+  
+  <Accordion title="Deployment Timeout">
+    **Error**: `Deployment timed out after 30 minutes`
+    
+    **Solution**:
+    ```bash
+    # Check deployment status
+    devplatform status --app my-app --env dev
+    
+    # View detailed logs
+    devplatform logs --app my-app --env dev
+    
+    # Retry deployment
+    devplatform create --app my-app --env dev --retry
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Multi-Environment Setup" icon="layer-group" href="/guides/multi-environment">
+    Set up development, staging, and production environments
+  </Card>
+  <Card title="Cost Optimization" icon="dollar-sign" href="/guides/cost-optimization">
+    Optimize your cloud spending
+  </Card>
+  <Card title="CI/CD Integration" icon="code-branch" href="/advanced/ci-cd-integration">
+    Automate deployments with CI/CD pipelines
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/guides/troubleshooting">
+    Resolve common deployment issues
+  </Card>
+</CardGroup>
+
+## Cleanup
+
+To delete all resources:
+
+```bash
+devplatform destroy --app my-app --env dev --confirm
+```
+
+<Warning>
+This will permanently delete all infrastructure including databases. Ensure you have backups before destroying.
+</Warning>
