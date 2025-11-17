@@ -1,0 +1,181 @@
+# DevPlatform CLI - .gitignore
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+build/
+out/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate.d/
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+.kube/
+
+# Cloud provider credentials
+.aws/
+.azure/
+credentials
+*.pem
+*.key
+*.crt
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Mintlify
+.mintlify/
+docs/docs.json
+.next/
+.cache/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Testing
+coverage/
+*.cover
+.hypothesis/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Backup files
+*.backup
+*.old
+*.orig
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.pyc
+*.pyo
+__pycache__/
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Secrets and sensitive data
+secrets/
+*.secret
+*.secrets
+.secrets/
+credentials.json
+service-account.json
+
+# State files
+*.state
+state/
+.state/
+
+# Cache directories
+.cache/
+.npm/
+.eslintcache
+.stylelintcache
+.parcel-cache/
+
+# Documentation build artifacts
+_site/
+.jekyll-cache/
+.jekyll-metadata
+
+# Local development
+.local/
+local/
+dev/
+.dev/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Helm
+charts/*/charts/
+*.tgz
+
+# Ignore personal notes
+NOTES.md
+TODO.md
+SCRATCH.md
