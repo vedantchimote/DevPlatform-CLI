@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"os"
+	"github.com/devplatform/devplatform-cli/cmd"
 )
 
 var (
@@ -13,10 +12,11 @@ var (
 )
 
 func main() {
-	fmt.Println("DevPlatform CLI")
-	fmt.Printf("Version: %s\n", Version)
-	fmt.Printf("Git Commit: %s\n", GitCommit)
-	fmt.Printf("Build Date: %s\n", BuildDate)
+	// Set version information in cmd package
+	cmd.Version = Version
+	cmd.GitCommit = GitCommit
+	cmd.BuildDate = BuildDate
 	
-	os.Exit(0)
+	// Execute the root command
+	cmd.Execute()
 }
