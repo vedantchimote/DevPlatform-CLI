@@ -14,13 +14,13 @@ This implementation plan breaks down the DevPlatform CLI into discrete coding ta
   - _Requirements: 25.1, 25.2, 26.1, 27.1_
 
 - [ ] 2. Implement core CLI command structure with Cobra
-  - [-] 2.1 Create root command with global flags
+  - [x] 2.1 Create root command with global flags
     - Implement `cmd/root.go` with global flags: `--verbose`, `--debug`, `--no-color`, `--config`
     - Set up command execution framework
     - Add version information constants
     - _Requirements: 11.4, 11.6, 16.4_
 
-  - [ ] 2.2 Implement version command
+  - [-] 2.2 Implement version command
     - Create `cmd/version.go` with version display logic
     - Include CLI version, Git commit hash, and build date
     - Add dependency version checking for terraform, helm, kubectl, aws CLI, az CLI
