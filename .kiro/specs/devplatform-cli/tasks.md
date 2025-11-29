@@ -33,13 +33,13 @@ This implementation plan breaks down the DevPlatform CLI into discrete coding ta
     - _Requirements: 19.1, 19.2, 19.3_
 
 - [ ] 3. Implement configuration management
-  - [-] 3.1 Create configuration data structures
+  - [x] 3.1 Create configuration data structures
     - Define `Config`, `GlobalConfig`, `EnvironmentConfig`, `TerraformConfig`, `HelmConfig`, `AzureConfig` structs in `internal/config/config.go`
     - Add YAML struct tags for parsing
     - Add CloudProvider field to GlobalConfig
     - _Requirements: 17.1, 10.2, 10.3, 10.4, 26.1, 29.1, 29.2_
 
-  - [ ] 3.2 Implement configuration file loader
+  - [-] 3.2 Implement configuration file loader
     - Create `internal/config/loader.go` with Viper integration
     - Load `.devplatform.yaml` from current directory
     - Parse YAML and populate Config structs
