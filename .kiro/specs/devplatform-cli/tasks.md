@@ -39,14 +39,14 @@ This implementation plan breaks down the DevPlatform CLI into discrete coding ta
     - Add CloudProvider field to GlobalConfig
     - _Requirements: 17.1, 10.2, 10.3, 10.4, 26.1, 29.1, 29.2_
 
-  - [-] 3.2 Implement configuration file loader
+  - [x] 3.2 Implement configuration file loader
     - Create `internal/config/loader.go` with Viper integration
     - Load `.devplatform.yaml` from current directory
     - Parse YAML and populate Config structs
     - Handle file not found gracefully
     - _Requirements: 17.1, 17.4_
 
-  - [ ] 3.3 Implement configuration validator
+  - [-] 3.3 Implement configuration validator
     - Create `internal/config/validator.go` with validation logic
     - Validate YAML schema and required fields
     - Validate environment type values (dev, staging, prod)
