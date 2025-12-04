@@ -46,14 +46,14 @@ This implementation plan breaks down the DevPlatform CLI into discrete coding ta
     - Handle file not found gracefully
     - _Requirements: 17.1, 17.4_
 
-  - [-] 3.3 Implement configuration validator
+  - [x] 3.3 Implement configuration validator
     - Create `internal/config/validator.go` with validation logic
     - Validate YAML schema and required fields
     - Validate environment type values (dev, staging, prod)
     - Return descriptive error messages with line numbers for YAML errors
     - _Requirements: 8.3, 17.2, 17.4_
 
-  - [ ] 3.4 Implement CLI flag merging logic
+  - [-] 3.4 Implement CLI flag merging logic
     - Merge command-line flags with configuration file values
     - Prioritize CLI flags over file configuration
     - _Requirements: 17.3_
