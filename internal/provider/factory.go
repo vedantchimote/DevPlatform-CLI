@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+
+	"github.com/devplatform/devplatform-cli/internal/aws"
 )
 
 // ProviderConfig contains configuration for creating a cloud provider
@@ -29,10 +31,9 @@ func NewProvider(ctx context.Context, cfg *ProviderConfig) (CloudProvider, error
 	}
 }
 
-// newAWSProvider creates an AWS provider (placeholder for now)
+// newAWSProvider creates an AWS provider
 func newAWSProvider(ctx context.Context, cfg *ProviderConfig) (CloudProvider, error) {
-	// This will be implemented in Task 7.5.3
-	return nil, fmt.Errorf("AWS provider implementation pending")
+	return aws.NewAWSProvider(ctx, cfg.Region, cfg.Profile)
 }
 
 // newAzureProvider creates an Azure provider (placeholder for now)
