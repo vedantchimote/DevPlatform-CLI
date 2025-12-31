@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/devplatform/devplatform-cli/internal/aws"
+	"github.com/devplatform/devplatform-cli/internal/azure"
 )
 
 // ProviderConfig contains configuration for creating a cloud provider
@@ -17,6 +18,7 @@ type ProviderConfig struct {
 	SubscriptionID string
 	TenantID       string
 	Location       string
+	ResourceGroup  string
 }
 
 // NewProvider creates a new cloud provider based on the configuration
@@ -36,8 +38,7 @@ func newAWSProvider(ctx context.Context, cfg *ProviderConfig) (CloudProvider, er
 	return aws.NewAWSProvider(ctx, cfg.Region, cfg.Profile)
 }
 
-// newAzureProvider creates an Azure provider (placeholder for now)
+// newAzureProvider creates an Azure provider
 func newAzureProvider(ctx context.Context, cfg *ProviderConfig) (CloudProvider, error) {
-	// This will be implemented in Task 7.6
-	return nil, fmt.Errorf("Azure provider implementation pending")
+	return azure.NewAzureProvider(ctx, cfg.SubscriptionID, cfg.TenantID, cfg.Location, cfg.ResourceGroup)
 }
