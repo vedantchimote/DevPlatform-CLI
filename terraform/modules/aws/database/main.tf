@@ -48,13 +48,16 @@ resource "aws_secretsmanager_secret" "db_password" {
   name        = "${var.app_name}-${var.env_type}-db-password"
   description = "Database password for ${var.app_name} ${var.env_type} environment"
 
-  tags = {
-    Name        = "${var.app_name}-${var.env_type}-db-password"
-    App_Name    = var.app_name
-    Env_Type    = var.env_type
-    ManagedBy   = "devplatform-cli"
-    Timestamp   = timestamp()
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name        = "${var.app_name}-${var.env_type}-db-password"
+      App_Name    = var.app_name
+      Env_Type    = var.env_type
+      ManagedBy   = "devplatform-cli"
+      Timestamp   = timestamp()
+    }
+  )
 }
 
 resource "aws_secretsmanager_secret_version" "db_password" {
@@ -74,13 +77,16 @@ resource "aws_db_subnet_group" "main" {
   name       = "${var.app_name}-${var.env_type}-db-subnet-group"
   subnet_ids = var.subnet_ids
 
-  tags = {
-    Name      = "${var.app_name}-${var.env_type}-db-subnet-group"
-    App_Name  = var.app_name
-    Env_Type  = var.env_type
-    ManagedBy = "devplatform-cli"
-    Timestamp = timestamp()
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name      = "${var.app_name}-${var.env_type}-db-subnet-group"
+      App_Name  = var.app_name
+      Env_Type  = var.env_type
+      ManagedBy = "devplatform-cli"
+      Timestamp = timestamp()
+    }
+  )
 }
 
 # Create security group for RDS
@@ -105,13 +111,16 @@ resource "aws_security_group" "rds" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name      = "${var.app_name}-${var.env_type}-rds-sg"
-    App_Name  = var.app_name
-    Env_Type  = var.env_type
-    ManagedBy = "devplatform-cli"
-    Timestamp = timestamp()
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name      = "${var.app_name}-${var.env_type}-rds-sg"
+      App_Name  = var.app_name
+      Env_Type  = var.env_type
+      ManagedBy = "devplatform-cli"
+      Timestamp = timestamp()
+    }
+  )
 }
 
 # Create DB parameter group
@@ -134,13 +143,16 @@ resource "aws_db_parameter_group" "main" {
     value = "1"
   }
 
-  tags = {
-    Name      = "${var.app_name}-${var.env_type}-pg-params"
-    App_Name  = var.app_name
-    Env_Type  = var.env_type
-    ManagedBy = "devplatform-cli"
-    Timestamp = timestamp()
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name      = "${var.app_name}-${var.env_type}-pg-params"
+      App_Name  = var.app_name
+      Env_Type  = var.env_type
+      ManagedBy = "devplatform-cli"
+      Timestamp = timestamp()
+    }
+  )
 }
 
 # Create RDS instance
@@ -174,11 +186,14 @@ resource "aws_db_instance" "main" {
 
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
-  tags = {
-    Name      = "${var.app_name}-${var.env_type}-db"
-    App_Name  = var.app_name
-    Env_Type  = var.env_type
-    ManagedBy = "devplatform-cli"
-    Timestamp = timestamp()
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name      = "${var.app_name}-${var.env_type}-db"
+      App_Name  = var.app_name
+      Env_Type  = var.env_type
+      ManagedBy = "devplatform-cli"
+      Timestamp = timestamp()
+    }
+  )
 }

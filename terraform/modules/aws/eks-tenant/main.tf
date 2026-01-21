@@ -142,13 +142,16 @@ resource "aws_iam_role" "service_account" {
     ]
   })
 
-  tags = {
-    Name      = "${var.app_name}-${var.env_type}-sa-role"
-    App_Name  = var.app_name
-    Env_Type  = var.env_type
-    ManagedBy = "devplatform-cli"
-    Timestamp = timestamp()
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name      = "${var.app_name}-${var.env_type}-sa-role"
+      App_Name  = var.app_name
+      Env_Type  = var.env_type
+      ManagedBy = "devplatform-cli"
+      Timestamp = timestamp()
+    }
+  )
 }
 
 # Attach policy to allow reading database secrets
