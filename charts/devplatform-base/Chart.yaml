@@ -1,0 +1,13 @@
+apiVersion: v2
+name: devplatform-base
+description: Base Helm chart for DevPlatform CLI applications
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - devplatform
+  - kubernetes
+  - application
+maintainers:
+  - name: DevPlatform Team
+    email: team@devplatform.io
