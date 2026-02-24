@@ -1,0 +1,31 @@
+# Development environment values
+# Override default values for dev environment
+
+app:
+  environment: dev
+
+# Use smaller resources for dev
+replicaCount: 1
+
+# Disable autoscaling in dev
+autoscaling:
+  enabled: false
+
+# Disable ingress in dev (use port-forward instead)
+ingress:
+  enabled: false
+
+# Relaxed probes for faster startup in dev
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+# Disable pod disruption budget in dev
+podDisruptionBudget:
+  enabled: false
