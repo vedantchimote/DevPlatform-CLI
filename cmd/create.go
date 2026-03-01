@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/devplatform/devplatform-cli/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -113,13 +115,27 @@ func runCreate(cmd *cobra.Command, args []string) error {
 }
 
 func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
-	// TODO: Implement create orchestration logic in Task 13.2
-	fmt.Printf("Creating environment for app: %s, env: %s, provider: %s\n", 
-		opts.AppName, opts.Environment, opts.Provider)
-	
+	_, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	defer cancel()
+
+	// Initialize logger
+	log := logger.GetDefault()
+	log.Info(fmt.Sprintf("Starting create operation for app: %s, env: %s, provider: %s", 
+		opts.AppName, opts.Environment, opts.Provider))
+
 	if opts.DryRun {
-		fmt.Println("DRY-RUN MODE: No resources will be created")
+		log.Info("DRY-RUN MODE: No resources will be created")
 	}
 
-	return fmt.Errorf("create command not yet implemented")
+	// TODO: Complete implementation after resolving import cycle
+	// The full orchestration logic includes:
+	// 1. Validate inputs
+	// 2. Load configuration
+	// 3. Validate cloud provider credentials
+	// 4. Calculate cost estimate
+	// 5. Provision infrastructure with Terraform
+	// 6. Deploy application with Helm
+	// 7. Configure kubectl access
+	
+	return fmt.Errorf("create command implementation in progress - import cycle needs resolution")
 }
