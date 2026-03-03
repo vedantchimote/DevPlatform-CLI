@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/devplatform/devplatform-cli/internal/provider"
+	"github.com/devplatform/devplatform-cli/internal/provider/types"
 )
 
 // AzureProvider implements the CloudProvider interface for Azure
@@ -45,7 +45,7 @@ func (p *AzureProvider) ValidateCredentials(ctx context.Context) error {
 }
 
 // GetCallerIdentity returns Azure caller identity information
-func (p *AzureProvider) GetCallerIdentity(ctx context.Context) (*provider.CallerIdentity, error) {
+func (p *AzureProvider) GetCallerIdentity(ctx context.Context) (*types.CallerIdentity, error) {
 	identity, err := p.auth.GetCallerIdentity(ctx)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (p *AzureProvider) GetCallerIdentity(ctx context.Context) (*provider.Caller
 	
 	// Map Azure identity to provider identity
 	// Using SubscriptionID as Account, TenantID as Arn, and State as UserId
-	return &provider.CallerIdentity{
+	return &types.CallerIdentity{
 		Account: identity.SubscriptionID,
 		Arn:     identity.TenantID,
 		UserId:  identity.State,
@@ -71,13 +71,13 @@ func (p *AzureProvider) GetConnectionCommands(clusterName string, namespace stri
 }
 
 // CalculateTotalCost calculates the total monthly cost for an environment
-func (p *AzureProvider) CalculateTotalCost(envType string) (*provider.EnvironmentCosts, error) {
+func (p *AzureProvider) CalculateTotalCost(envType string) (*types.EnvironmentCosts, error) {
 	costs, err := p.pricing.CalculateTotalCost(envType)
 	if err != nil {
 		return nil, err
 	}
 	
-	return &provider.EnvironmentCosts{
+	return &types.EnvironmentCosts{
 		NetworkCost:  costs.VNetCost,
 		DatabaseCost: costs.DatabaseCost,
 		K8sCost:      costs.AKSCost,
@@ -88,13 +88,13 @@ func (p *AzureProvider) CalculateTotalCost(envType string) (*provider.Environmen
 }
 
 // GetTerraformBackend returns the Terraform backend configuration for Azure
-func (p *AzureProvider) GetTerraformBackend(appName string, envType string) (*provider.TerraformBackend, error) {
+func (p *AzureProvider) GetTerraformBackend(appName string, envType string) (*types.TerraformBackend, error) {
 	// Azure Storage backend configuration
 	storageAccountName := fmt.Sprintf("devplatformtf%s", p.location)
 	containerName := "terraform-state"
 	key := fmt.Sprintf("%s/%s/terraform.tfstate", appName, envType)
 	
-	return &provider.TerraformBackend{
+	return &types.TerraformBackend{
 		Type: "azurerm",
 		Config: map[string]string{
 			"storage_account_name": storageAccountName,

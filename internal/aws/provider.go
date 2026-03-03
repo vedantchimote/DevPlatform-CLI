@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/devplatform/devplatform-cli/internal/provider"
+	"github.com/devplatform/devplatform-cli/internal/provider/types"
 )
 
 // AWSProvider implements the CloudProvider interface for AWS
@@ -41,13 +41,13 @@ func (p *AWSProvider) ValidateCredentials(ctx context.Context) error {
 }
 
 // GetCallerIdentity returns AWS caller identity information
-func (p *AWSProvider) GetCallerIdentity(ctx context.Context) (*provider.CallerIdentity, error) {
+func (p *AWSProvider) GetCallerIdentity(ctx context.Context) (*types.CallerIdentity, error) {
 	identity, err := p.auth.GetCallerIdentity(ctx)
 	if err != nil {
 		return nil, err
 	}
 	
-	return &provider.CallerIdentity{
+	return &types.CallerIdentity{
 		Account: identity.Account,
 		Arn:     identity.Arn,
 		UserId:  identity.UserId,
@@ -65,13 +65,13 @@ func (p *AWSProvider) GetConnectionCommands(clusterName string, namespace string
 }
 
 // CalculateTotalCost calculates the total monthly cost for an environment
-func (p *AWSProvider) CalculateTotalCost(envType string) (*provider.EnvironmentCosts, error) {
+func (p *AWSProvider) CalculateTotalCost(envType string) (*types.EnvironmentCosts, error) {
 	costs, err := p.pricing.CalculateTotalCost(envType)
 	if err != nil {
 		return nil, err
 	}
 	
-	return &provider.EnvironmentCosts{
+	return &types.EnvironmentCosts{
 		NetworkCost:  costs.VPCCost,
 		DatabaseCost: costs.RDSCost,
 		K8sCost:      costs.EKSCost,
@@ -82,13 +82,13 @@ func (p *AWSProvider) CalculateTotalCost(envType string) (*provider.EnvironmentC
 }
 
 // GetTerraformBackend returns the Terraform backend configuration for AWS
-func (p *AWSProvider) GetTerraformBackend(appName string, envType string) (*provider.TerraformBackend, error) {
+func (p *AWSProvider) GetTerraformBackend(appName string, envType string) (*types.TerraformBackend, error) {
 	// S3 backend configuration
 	bucket := fmt.Sprintf("devplatform-terraform-state-%s", p.region)
 	key := fmt.Sprintf("%s/%s/terraform.tfstate", appName, envType)
 	dynamodbTable := "devplatform-terraform-locks"
 	
-	return &provider.TerraformBackend{
+	return &types.TerraformBackend{
 		Type: "s3",
 		Config: map[string]string{
 			"bucket":         bucket,
