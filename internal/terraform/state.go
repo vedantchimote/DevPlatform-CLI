@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/devplatform/devplatform-cli/internal/provider"
+	"github.com/devplatform/devplatform-cli/internal/provider/types"
 )
 
 // StateManager handles Terraform state operations
@@ -22,7 +22,7 @@ func NewStateManager(executor TerraformExecutor) *StateManager {
 }
 
 // ConfigureBackend configures the Terraform backend for state storage
-func (s *StateManager) ConfigureBackend(ctx context.Context, workingDir string, backend *provider.TerraformBackend) error {
+func (s *StateManager) ConfigureBackend(ctx context.Context, workingDir string, backend *types.TerraformBackend) error {
 	// Create backend configuration file
 	backendConfig := s.generateBackendConfig(backend)
 	
@@ -36,7 +36,7 @@ func (s *StateManager) ConfigureBackend(ctx context.Context, workingDir string, 
 }
 
 // generateBackendConfig generates the Terraform backend configuration
-func (s *StateManager) generateBackendConfig(backend *provider.TerraformBackend) string {
+func (s *StateManager) generateBackendConfig(backend *types.TerraformBackend) string {
 	switch backend.Type {
 	case "s3":
 		return s.generateS3BackendConfig(backend.Config)

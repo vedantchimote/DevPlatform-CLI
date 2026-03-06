@@ -3,9 +3,14 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
+	"github.com/devplatform/devplatform-cli/internal/config"
+	"github.com/devplatform/devplatform-cli/internal/helm"
 	"github.com/devplatform/devplatform-cli/internal/logger"
+	"github.com/devplatform/devplatform-cli/internal/provider"
+	"github.com/devplatform/devplatform-cli/internal/terraform"
 	"github.com/spf13/cobra"
 )
 
@@ -115,7 +120,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 }
 
 func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
-	_, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
 	// Initialize logger
@@ -127,15 +132,273 @@ func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
 		log.Info("DRY-RUN MODE: No resources will be created")
 	}
 
-	// TODO: Complete implementation after resolving import cycle
-	// The full orchestration logic includes:
-	// 1. Validate inputs
-	// 2. Load configuration
-	// 3. Validate cloud provider credentials
-	// 4. Calculate cost estimate
-	// 5. Provision infrastructure with Terraform
-	// 6. Deploy application with Helm
-	// 7. Configure kubectl access
+	// Step 1: Validate inputs
+	if err := validateInputs(opts); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+	log.Success("Input validation passed")
+
+	// Step 2: Load configuration
+	cfg, err := loadConfiguration(opts.ConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	log.Success("Configuration loaded")
+
+	// Step 3: Initialize cloud provider
+	cloudProvider, err := initializeProvider(ctx, opts, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize cloud provider: %w", err)
+	}
+	log.Success(fmt.Sprintf("Cloud provider initialized: %s", opts.Provider))
+
+	// Step 4: Validate credentials and display identity
+	if err := validateCredentials(ctx, cloudProvider, log); err != nil {
+		return fmt.Errorf("credential validation failed: %w", err)
+	}
+
+	// Step 5: Calculate and display cost estimate
+	if err := displayCostEstimate(cloudProvider, opts.Environment, log); err != nil {
+		log.Warn(fmt.Sprintf("Failed to calculate cost estimate: %v", err))
+	}
+
+	if opts.DryRun {
+		log.Info("Dry-run complete. No resources were created.")
+		return nil
+	}
+
+	// Step 6: Provision infrastructure with Terraform
+	if err := provisionInfrastructure(ctx, cloudProvider, opts, cfg, log); err != nil {
+		return fmt.Errorf("infrastructure provisioning failed: %w", err)
+	}
+
+	// Step 7: Deploy application with Helm
+	if err := deployApplication(ctx, opts, cfg, log); err != nil {
+		return fmt.Errorf("application deployment failed: %w", err)
+	}
+
+	// Step 8: Configure kubectl access
+	if err := configureKubectl(cloudProvider, opts, log); err != nil {
+		log.Warn(fmt.Sprintf("Failed to configure kubectl: %v", err))
+	}
+
+	// Display success message
+	displaySuccessMessage(cloudProvider, opts, log)
+
+	return nil
+}
+
+// validateInputs validates the command inputs
+func validateInputs(opts *CreateOptions) error {
+	// Validate app name
+	if opts.AppName == "" {
+		return fmt.Errorf("app name is required")
+	}
+
+	// Validate environment
+	validEnvs := map[string]bool{"dev": true, "staging": true, "prod": true}
+	if !validEnvs[opts.Environment] {
+		return fmt.Errorf("invalid environment: %s (must be dev, staging, or prod)", opts.Environment)
+	}
+
+	// Validate provider
+	validProviders := map[string]bool{"aws": true, "azure": true}
+	if !validProviders[opts.Provider] {
+		return fmt.Errorf("invalid provider: %s (must be aws or azure)", opts.Provider)
+	}
+
+	return nil
+}
+
+// loadConfiguration loads the configuration from file or returns defaults
+func loadConfiguration(configFile string) (*config.Config, error) {
+	if configFile != "" {
+		return config.LoadFromPath(configFile)
+	}
+	return config.LoadDefault()
+}
+
+// initializeProvider creates and initializes the cloud provider
+func initializeProvider(ctx context.Context, opts *CreateOptions, cfg *config.Config) (provider.CloudProvider, error) {
+	providerCfg := &provider.ProviderConfig{
+		Provider: opts.Provider,
+	}
+
+	// Set provider-specific configuration
+	if opts.Provider == "aws" {
+		providerCfg.Region = cfg.AWS.Region
+		providerCfg.Profile = cfg.AWS.Profile
+	} else if opts.Provider == "azure" {
+		providerCfg.SubscriptionID = cfg.Azure.SubscriptionID
+		providerCfg.TenantID = cfg.Azure.TenantID
+		providerCfg.Location = cfg.Azure.Location
+		providerCfg.ResourceGroup = fmt.Sprintf("devplatform-%s-%s", opts.AppName, opts.Environment)
+	}
+
+	return provider.NewProvider(ctx, providerCfg)
+}
+
+// validateCredentials validates cloud provider credentials
+func validateCredentials(ctx context.Context, cloudProvider provider.CloudProvider, log *logger.Logger) error {
+	log.Info("Validating cloud provider credentials...")
 	
-	return fmt.Errorf("create command implementation in progress - import cycle needs resolution")
+	if err := cloudProvider.ValidateCredentials(ctx); err != nil {
+		return err
+	}
+
+	identity, err := cloudProvider.GetCallerIdentity(ctx)
+	if err != nil {
+		return err
+	}
+
+	log.Success(fmt.Sprintf("Authenticated as: %s (Account: %s)", identity.UserId, identity.Account))
+	return nil
+}
+
+// displayCostEstimate calculates and displays the cost estimate
+func displayCostEstimate(cloudProvider provider.CloudProvider, environment string, log *logger.Logger) error {
+	log.Info("Calculating cost estimate...")
+	
+	costs, err := cloudProvider.CalculateTotalCost(environment)
+	if err != nil {
+		return err
+	}
+
+	log.Info(fmt.Sprintf("\n=== Cost Estimate for %s environment ===", environment))
+	log.Info(fmt.Sprintf("Network:  $%.2f/month", costs.NetworkCost))
+	log.Info(fmt.Sprintf("Database: $%.2f/month", costs.DatabaseCost))
+	log.Info(fmt.Sprintf("K8s:      $%.2f/month", costs.K8sCost))
+	log.Info(fmt.Sprintf("Total:    $%.2f/month", costs.TotalCost))
+	log.Info("=========================================\n")
+
+	return nil
+}
+
+// provisionInfrastructure provisions the infrastructure using Terraform
+func provisionInfrastructure(ctx context.Context, cloudProvider provider.CloudProvider, opts *CreateOptions, cfg *config.Config, log *logger.Logger) error {
+	log.Info("Provisioning infrastructure with Terraform...")
+
+	// Create Terraform executor
+	tfExecutor := terraform.NewExecutor(log)
+
+	// Determine working directory
+	workingDir := filepath.Join("terraform", "environments", opts.Provider)
+
+	// Initialize Terraform
+	if err := tfExecutor.Init(ctx, workingDir); err != nil {
+		return err
+	}
+
+	// Generate variable file path
+	varFile := fmt.Sprintf("%s-%s.tfvars", opts.AppName, opts.Environment)
+
+	// Apply Terraform
+	if err := tfExecutor.Apply(ctx, workingDir, varFile, true); err != nil {
+		return err
+	}
+
+	log.Success("Infrastructure provisioned successfully")
+	return nil
+}
+
+// deployApplication deploys the application using Helm
+func deployApplication(ctx context.Context, opts *CreateOptions, cfg *config.Config, log *logger.Logger) error {
+	log.Info("Deploying application with Helm...")
+
+	// Create Helm client
+	helmClient := helm.NewClient(*log)
+
+	// Prepare release name and namespace
+	releaseName := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+	namespace := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+
+	// Prepare values
+	values := map[string]interface{}{
+		"image.repository": fmt.Sprintf("%s/%s", "registry.example.com", opts.AppName),
+		"image.tag":        "latest",
+		"environment":      opts.Environment,
+	}
+
+	// Prepare values files
+	valuesFiles := []string{}
+	if opts.ValuesFile != "" {
+		valuesFiles = append(valuesFiles, opts.ValuesFile)
+	}
+
+	// Install or upgrade the release
+	chartPath := cfg.Helm.ChartPath
+	installOpts := helm.InstallOptions{
+		ReleaseName:     releaseName,
+		Chart:           chartPath,
+		Namespace:       namespace,
+		ValuesFiles:     valuesFiles,
+		Values:          values,
+		CreateNamespace: true,
+		Wait:            true,
+		Timeout:         5 * time.Minute,
+	}
+
+	// Try install first
+	err := helmClient.Install(ctx, installOpts)
+	if err != nil {
+		// If install fails, try upgrade with --install flag
+		upgradeOpts := helm.UpgradeOptions{
+			ReleaseName: releaseName,
+			Chart:       chartPath,
+			Namespace:   namespace,
+			ValuesFiles: valuesFiles,
+			Values:      values,
+			Install:     true,
+			Wait:        true,
+			Timeout:     5 * time.Minute,
+		}
+		if err := helmClient.Upgrade(ctx, upgradeOpts); err != nil {
+			return err
+		}
+	}
+
+	// Verify pods are ready
+	verifier, err := helm.NewPodVerifier(*log)
+	if err != nil {
+		log.Warn(fmt.Sprintf("Failed to create pod verifier: %v", err))
+	} else {
+		if _, err := verifier.VerifyPods(ctx, namespace, 5*time.Minute); err != nil {
+			log.Warn(fmt.Sprintf("Pod verification failed: %v", err))
+		}
+	}
+
+	log.Success("Application deployed successfully")
+	return nil
+}
+
+// configureKubectl configures kubectl access to the cluster
+func configureKubectl(cloudProvider provider.CloudProvider, opts *CreateOptions, log *logger.Logger) error {
+	log.Info("Configuring kubectl access...")
+
+	clusterName := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+	if err := cloudProvider.UpdateKubeconfig(clusterName); err != nil {
+		return err
+	}
+
+	log.Success("kubectl configured successfully")
+	return nil
+}
+
+// displaySuccessMessage displays the final success message with connection commands
+func displaySuccessMessage(cloudProvider provider.CloudProvider, opts *CreateOptions, log *logger.Logger) {
+	clusterName := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+	namespace := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+
+	log.Success("\n=== Deployment Complete ===")
+	log.Info(fmt.Sprintf("Application: %s", opts.AppName))
+	log.Info(fmt.Sprintf("Environment: %s", opts.Environment))
+	log.Info(fmt.Sprintf("Provider: %s", opts.Provider))
+	log.Info("\nTo connect to your cluster, run:")
+
+	commands := cloudProvider.GetConnectionCommands(clusterName, namespace)
+	for _, cmd := range commands {
+		log.Info(fmt.Sprintf("  %s", cmd))
+	}
+
+	log.Info("\n===========================\n")
 }
