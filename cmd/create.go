@@ -132,6 +132,14 @@ func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
 		log.Info("DRY-RUN MODE: No resources will be created")
 	}
 
+	// Track deployment state for rollback
+	var (
+		terraformProvisioned bool
+		helmDeployed         bool
+		cloudProvider        provider.CloudProvider
+		cfg                  *config.Config
+	)
+
 	// Step 1: Validate inputs
 	if err := validateInputs(opts); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -139,14 +147,15 @@ func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
 	log.Success("Input validation passed")
 
 	// Step 2: Load configuration
-	cfg, err := loadConfiguration(opts.ConfigFile)
+	var err error
+	cfg, err = loadConfiguration(opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 	log.Success("Configuration loaded")
 
 	// Step 3: Initialize cloud provider
-	cloudProvider, err := initializeProvider(ctx, opts, cfg)
+	cloudProvider, err = initializeProvider(ctx, opts, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize cloud provider: %w", err)
 	}
@@ -169,13 +178,24 @@ func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
 
 	// Step 6: Provision infrastructure with Terraform
 	if err := provisionInfrastructure(ctx, cloudProvider, opts, cfg, log); err != nil {
+		log.Error("Infrastructure provisioning failed. No rollback needed as no resources were created.")
 		return fmt.Errorf("infrastructure provisioning failed: %w", err)
 	}
+	terraformProvisioned = true
 
 	// Step 7: Deploy application with Helm
 	if err := deployApplication(ctx, opts, cfg, log); err != nil {
+		log.Error("Application deployment failed. Initiating rollback...")
+		rollbackErr := rollback(ctx, opts, cfg, log, terraformProvisioned, helmDeployed)
+		if rollbackErr != nil {
+			log.Error(fmt.Sprintf("Rollback failed: %v", rollbackErr))
+			displayManualCleanupInstructions(opts, log, terraformProvisioned, helmDeployed)
+		} else {
+			log.Success("Rollback completed successfully")
+		}
 		return fmt.Errorf("application deployment failed: %w", err)
 	}
+	helmDeployed = true
 
 	// Step 8: Configure kubectl access
 	if err := configureKubectl(cloudProvider, opts, log); err != nil {
@@ -401,4 +421,91 @@ func displaySuccessMessage(cloudProvider provider.CloudProvider, opts *CreateOpt
 	}
 
 	log.Info("\n===========================\n")
+}
+
+// rollback performs rollback operations when deployment fails
+func rollback(ctx context.Context, opts *CreateOptions, cfg *config.Config, log *logger.Logger, terraformProvisioned bool, helmDeployed bool) error {
+	log.Info("Starting rollback process...")
+
+	var rollbackErrors []error
+
+	// Rollback Helm deployment if it was deployed
+	if helmDeployed {
+		log.Info("Rolling back Helm deployment...")
+		if err := rollbackHelm(ctx, opts, log); err != nil {
+			log.Error(fmt.Sprintf("Failed to rollback Helm: %v", err))
+			rollbackErrors = append(rollbackErrors, fmt.Errorf("helm rollback failed: %w", err))
+		} else {
+			log.Success("Helm deployment rolled back successfully")
+		}
+	}
+
+	// Rollback Terraform infrastructure if it was provisioned
+	if terraformProvisioned {
+		log.Info("Rolling back Terraform infrastructure...")
+		if err := rollbackTerraform(ctx, opts, cfg, log); err != nil {
+			log.Error(fmt.Sprintf("Failed to rollback Terraform: %v", err))
+			rollbackErrors = append(rollbackErrors, fmt.Errorf("terraform rollback failed: %w", err))
+		} else {
+			log.Success("Terraform infrastructure rolled back successfully")
+		}
+	}
+
+	if len(rollbackErrors) > 0 {
+		return fmt.Errorf("rollback completed with %d error(s)", len(rollbackErrors))
+	}
+
+	return nil
+}
+
+// rollbackHelm uninstalls the Helm release
+func rollbackHelm(ctx context.Context, opts *CreateOptions, log *logger.Logger) error {
+	helmClient := helm.NewClient(*log)
+
+	releaseName := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+	namespace := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+
+	uninstallOpts := helm.UninstallOptions{
+		ReleaseName: releaseName,
+		Namespace:   namespace,
+		Wait:        true,
+		Timeout:     5 * time.Minute,
+	}
+
+	return helmClient.Uninstall(ctx, uninstallOpts)
+}
+
+// rollbackTerraform destroys the Terraform-managed infrastructure
+func rollbackTerraform(ctx context.Context, opts *CreateOptions, cfg *config.Config, log *logger.Logger) error {
+	tfExecutor := terraform.NewExecutor(log)
+
+	workingDir := filepath.Join("terraform", "environments", opts.Provider)
+	varFile := fmt.Sprintf("%s-%s.tfvars", opts.AppName, opts.Environment)
+
+	return tfExecutor.Destroy(ctx, workingDir, varFile, true)
+}
+
+// displayManualCleanupInstructions displays instructions for manual cleanup when rollback fails
+func displayManualCleanupInstructions(opts *CreateOptions, log *logger.Logger, terraformProvisioned bool, helmDeployed bool) {
+	log.Error("\n⚠️  Automatic rollback failed. Manual cleanup required.\n")
+
+	if helmDeployed {
+		log.Info("To manually remove the Helm release:")
+		releaseName := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+		namespace := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
+		log.Info(fmt.Sprintf("  helm uninstall %s --namespace %s", releaseName, namespace))
+		log.Info(fmt.Sprintf("  kubectl delete namespace %s", namespace))
+	}
+
+	if terraformProvisioned {
+		log.Info("\nTo manually destroy Terraform resources:")
+		workingDir := filepath.Join("terraform", "environments", opts.Provider)
+		log.Info(fmt.Sprintf("  cd %s", workingDir))
+		log.Info(fmt.Sprintf("  terraform destroy -var-file=%s-%s.tfvars", opts.AppName, opts.Environment))
+	}
+
+	log.Info("\nAlternatively, you can use the destroy command:")
+	log.Info(fmt.Sprintf("  devplatform destroy --app %s --env %s --provider %s", opts.AppName, opts.Environment, opts.Provider))
+
+	log.Info("\n⚠️  Please verify all resources have been deleted to avoid unexpected charges.\n")
 }
