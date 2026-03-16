@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+	clierrors "github.com/devplatform/devplatform-cli/internal/errors"
 )
 
 // AuthValidator handles Azure credential validation
@@ -23,7 +24,11 @@ func NewAuthValidator(ctx context.Context, subscriptionID string, tenantID strin
 	// 3. Managed Identity
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+		return nil, clierrors.NewAuthError(
+			clierrors.ErrCodeAuthMissingCredentials,
+			"Failed to create Azure credential",
+			err,
+		).WithDetails("Check Azure CLI login or service principal environment variables")
 	}
 	
 	return &AuthValidator{
@@ -38,24 +43,40 @@ func (a *AuthValidator) ValidateCredentials(ctx context.Context) error {
 	// Create subscriptions client to validate credentials
 	client, err := armsubscriptions.NewClient(a.credential, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create subscriptions client: %w", err)
+		return clierrors.NewAuthError(
+			clierrors.ErrCodeAuthMissingCredentials,
+			"Failed to create Azure subscriptions client",
+			err,
+		)
 	}
 	
 	// Try to get the subscription to validate credentials
 	if a.subscriptionID != "" {
 		_, err = client.Get(ctx, a.subscriptionID, nil)
 		if err != nil {
-			return fmt.Errorf("Azure credentials are invalid or expired: %w", err)
+			return clierrors.NewAuthError(
+				clierrors.ErrCodeAuthInvalidCredentials,
+				"Azure credentials are invalid or expired",
+				err,
+			).WithDetails(fmt.Sprintf("Subscription ID: %s", a.subscriptionID))
 		}
 	} else {
 		// If no subscription ID provided, just list subscriptions to validate
 		pager := client.NewListPager(nil)
 		if !pager.More() {
-			return fmt.Errorf("Azure credentials are invalid: no subscriptions found")
+			return clierrors.NewAuthError(
+				clierrors.ErrCodeAuthInvalidCredentials,
+				"Azure credentials are invalid: no subscriptions found",
+				nil,
+			)
 		}
 		_, err = pager.NextPage(ctx)
 		if err != nil {
-			return fmt.Errorf("Azure credentials are invalid or expired: %w", err)
+			return clierrors.NewAuthError(
+				clierrors.ErrCodeAuthInvalidCredentials,
+				"Azure credentials are invalid or expired",
+				err,
+			)
 		}
 	}
 	
@@ -67,13 +88,21 @@ func (a *AuthValidator) GetCallerIdentity(ctx context.Context) (*CallerIdentity,
 	// Create subscriptions client
 	client, err := armsubscriptions.NewClient(a.credential, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create subscriptions client: %w", err)
+		return nil, clierrors.NewAuthError(
+			clierrors.ErrCodeAuthMissingCredentials,
+			"Failed to create Azure subscriptions client",
+			err,
+		)
 	}
 	
 	// Get subscription details
 	sub, err := client.Get(ctx, a.subscriptionID, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get subscription: %w", err)
+		return nil, clierrors.NewAuthError(
+			clierrors.ErrCodeAuthInvalidCredentials,
+			"Failed to get Azure subscription details",
+			err,
+		).WithDetails(fmt.Sprintf("Subscription ID: %s", a.subscriptionID))
 	}
 	
 	return &CallerIdentity{

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	clierrors "github.com/devplatform/devplatform-cli/internal/errors"
 	"github.com/devplatform/devplatform-cli/internal/logger"
 )
 
@@ -274,7 +275,11 @@ func (c *Client) executeHelm(ctx context.Context, args ...string) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("helm command failed: %w", err)
+		return clierrors.NewHelmError(
+			clierrors.ErrCodeHelmInstallFailed,
+			"Helm command failed",
+			err,
+		).WithDetails(fmt.Sprintf("Command: %s %s\nStderr: %s", c.helmBinary, strings.Join(args, " "), stderr.String()))
 	}
 
 	return nil
@@ -289,7 +294,11 @@ func (c *Client) executeHelmWithOutput(ctx context.Context, args ...string) (str
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		c.logger.Error(string(output))
-		return "", fmt.Errorf("helm command failed: %w", err)
+		return "", clierrors.NewHelmError(
+			clierrors.ErrCodeHelmStatusFailed,
+			"Helm command failed",
+			err,
+		).WithDetails(fmt.Sprintf("Command: %s %s\nOutput: %s", c.helmBinary, strings.Join(args, " "), string(output)))
 	}
 
 	return string(output), nil

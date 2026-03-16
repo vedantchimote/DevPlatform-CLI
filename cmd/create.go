@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/devplatform/devplatform-cli/internal/config"
+	clierrors "github.com/devplatform/devplatform-cli/internal/errors"
 	"github.com/devplatform/devplatform-cli/internal/helm"
 	"github.com/devplatform/devplatform-cli/internal/logger"
 	"github.com/devplatform/devplatform-cli/internal/provider"
@@ -212,19 +213,40 @@ func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
 func validateInputs(opts *CreateOptions) error {
 	// Validate app name
 	if opts.AppName == "" {
-		return fmt.Errorf("app name is required")
+		return clierrors.NewValidationError(
+			clierrors.ErrCodeValidationMissingRequired,
+			"App name is required",
+			nil,
+		)
+	}
+
+	// Validate app name format
+	if len(opts.AppName) < 3 || len(opts.AppName) > 32 {
+		return clierrors.NewValidationError(
+			clierrors.ErrCodeValidationInvalidAppName,
+			fmt.Sprintf("App name '%s' is invalid: must be 3-32 characters", opts.AppName),
+			nil,
+		)
 	}
 
 	// Validate environment
 	validEnvs := map[string]bool{"dev": true, "staging": true, "prod": true}
 	if !validEnvs[opts.Environment] {
-		return fmt.Errorf("invalid environment: %s (must be dev, staging, or prod)", opts.Environment)
+		return clierrors.NewValidationError(
+			clierrors.ErrCodeValidationInvalidEnvironment,
+			fmt.Sprintf("Invalid environment: %s", opts.Environment),
+			nil,
+		).WithDetails(fmt.Sprintf("Provided: %s, Valid options: dev, staging, prod", opts.Environment))
 	}
 
 	// Validate provider
 	validProviders := map[string]bool{"aws": true, "azure": true}
 	if !validProviders[opts.Provider] {
-		return fmt.Errorf("invalid provider: %s (must be aws or azure)", opts.Provider)
+		return clierrors.NewValidationError(
+			clierrors.ErrCodeValidationInvalidProvider,
+			fmt.Sprintf("Invalid provider: %s", opts.Provider),
+			nil,
+		).WithDetails(fmt.Sprintf("Provided: %s, Valid options: aws, azure", opts.Provider))
 	}
 
 	return nil
@@ -233,9 +255,25 @@ func validateInputs(opts *CreateOptions) error {
 // loadConfiguration loads the configuration from file or returns defaults
 func loadConfiguration(configFile string) (*config.Config, error) {
 	if configFile != "" {
-		return config.LoadFromPath(configFile)
+		cfg, err := config.LoadFromPath(configFile)
+		if err != nil {
+			return nil, clierrors.NewConfigError(
+				clierrors.ErrCodeConfigParseFailed,
+				"Failed to load configuration file",
+				err,
+			).WithDetails(fmt.Sprintf("Config file: %s", configFile))
+		}
+		return cfg, nil
 	}
-	return config.LoadDefault()
+	cfg, err := config.LoadDefault()
+	if err != nil {
+		return nil, clierrors.NewConfigError(
+			clierrors.ErrCodeConfigParseFailed,
+			"Failed to load default configuration",
+			err,
+		)
+	}
+	return cfg, nil
 }
 
 // initializeProvider creates and initializes the cloud provider
@@ -255,7 +293,15 @@ func initializeProvider(ctx context.Context, opts *CreateOptions, cfg *config.Co
 		providerCfg.ResourceGroup = fmt.Sprintf("devplatform-%s-%s", opts.AppName, opts.Environment)
 	}
 
-	return provider.NewProvider(ctx, providerCfg)
+	cloudProvider, err := provider.NewProvider(ctx, providerCfg)
+	if err != nil {
+		return nil, clierrors.NewConfigError(
+			clierrors.ErrCodeConfigInvalidFormat,
+			"Failed to initialize cloud provider",
+			err,
+		).WithDetails(fmt.Sprintf("Provider: %s", opts.Provider))
+	}
+	return cloudProvider, nil
 }
 
 // validateCredentials validates cloud provider credentials
@@ -263,12 +309,26 @@ func validateCredentials(ctx context.Context, cloudProvider provider.CloudProvid
 	log.Info("Validating cloud provider credentials...")
 	
 	if err := cloudProvider.ValidateCredentials(ctx); err != nil {
-		return err
+		if cliErr, ok := err.(*clierrors.CLIError); ok {
+			return cliErr
+		}
+		return clierrors.NewAuthError(
+			clierrors.ErrCodeAuthInvalidCredentials,
+			"Failed to validate cloud provider credentials",
+			err,
+		)
 	}
 
 	identity, err := cloudProvider.GetCallerIdentity(ctx)
 	if err != nil {
-		return err
+		if cliErr, ok := err.(*clierrors.CLIError); ok {
+			return cliErr
+		}
+		return clierrors.NewAuthError(
+			clierrors.ErrCodeAuthInvalidCredentials,
+			"Failed to get caller identity",
+			err,
+		)
 	}
 
 	log.Success(fmt.Sprintf("Authenticated as: %s (Account: %s)", identity.UserId, identity.Account))
@@ -306,7 +366,14 @@ func provisionInfrastructure(ctx context.Context, cloudProvider provider.CloudPr
 
 	// Initialize Terraform
 	if err := tfExecutor.Init(ctx, workingDir); err != nil {
-		return err
+		if cliErr, ok := err.(*clierrors.CLIError); ok {
+			return cliErr
+		}
+		return clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformInitFailed,
+			"Failed to initialize Terraform",
+			err,
+		)
 	}
 
 	// Generate variable file path
@@ -314,7 +381,14 @@ func provisionInfrastructure(ctx context.Context, cloudProvider provider.CloudPr
 
 	// Apply Terraform
 	if err := tfExecutor.Apply(ctx, workingDir, varFile, true); err != nil {
-		return err
+		if cliErr, ok := err.(*clierrors.CLIError); ok {
+			return cliErr
+		}
+		return clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformApplyFailed,
+			"Failed to apply Terraform changes",
+			err,
+		)
 	}
 
 	log.Success("Infrastructure provisioned successfully")
@@ -373,7 +447,14 @@ func deployApplication(ctx context.Context, opts *CreateOptions, cfg *config.Con
 			Timeout:     5 * time.Minute,
 		}
 		if err := helmClient.Upgrade(ctx, upgradeOpts); err != nil {
-			return err
+			if cliErr, ok := err.(*clierrors.CLIError); ok {
+				return cliErr
+			}
+			return clierrors.NewHelmError(
+				clierrors.ErrCodeHelmUpgradeFailed,
+				"Failed to deploy application with Helm",
+				err,
+			)
 		}
 	}
 

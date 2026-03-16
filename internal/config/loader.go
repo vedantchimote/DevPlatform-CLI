@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	clierrors "github.com/devplatform/devplatform-cli/internal/errors"
 	"github.com/spf13/viper"
 )
 
@@ -53,12 +54,20 @@ func (l *Loader) Load() (*Config, error) {
 
 	// Read config file
 	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		return nil, clierrors.NewConfigError(
+			clierrors.ErrCodeConfigParseFailed,
+			fmt.Sprintf("Failed to read config file: %s", configPath),
+			err,
+		).WithDetails(fmt.Sprintf("Config path: %s", configPath))
 	}
 
 	// Unmarshal into config struct
 	if err := v.Unmarshal(cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
+		return nil, clierrors.NewConfigError(
+			clierrors.ErrCodeConfigParseFailed,
+			fmt.Sprintf("Failed to parse config file: %s", configPath),
+			err,
+		).WithDetails("Check YAML syntax and structure")
 	}
 
 	return cfg, nil

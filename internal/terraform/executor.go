@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	clierrors "github.com/devplatform/devplatform-cli/internal/errors"
 	"github.com/devplatform/devplatform-cli/internal/logger"
 )
 
@@ -50,7 +51,11 @@ func (e *Executor) Init(ctx context.Context, workingDir string) error {
 	
 	output, err := e.runCommand(cmd)
 	if err != nil {
-		return fmt.Errorf("terraform init failed: %w\nOutput: %s", err, output)
+		return clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformInitFailed,
+			"Terraform init failed",
+			err,
+		).WithDetails(fmt.Sprintf("Working directory: %s\nOutput: %s", workingDir, output))
 	}
 	
 	e.logger.Success("Terraform initialized successfully")
@@ -71,7 +76,11 @@ func (e *Executor) Plan(ctx context.Context, workingDir string, varFile string) 
 	
 	output, err := e.runCommand(cmd)
 	if err != nil {
-		return output, fmt.Errorf("terraform plan failed: %w\nOutput: %s", err, output)
+		return output, clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformPlanFailed,
+			"Terraform plan failed",
+			err,
+		).WithDetails(fmt.Sprintf("Working directory: %s\nOutput: %s", workingDir, output))
 	}
 	
 	e.logger.Success("Terraform plan generated successfully")
@@ -95,7 +104,11 @@ func (e *Executor) Apply(ctx context.Context, workingDir string, varFile string,
 	
 	output, err := e.runCommand(cmd)
 	if err != nil {
-		return fmt.Errorf("terraform apply failed: %w\nOutput: %s", err, output)
+		return clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformApplyFailed,
+			"Terraform apply failed",
+			err,
+		).WithDetails(fmt.Sprintf("Working directory: %s\nOutput: %s", workingDir, output))
 	}
 	
 	e.logger.Success("Terraform apply completed successfully")
@@ -119,7 +132,11 @@ func (e *Executor) Destroy(ctx context.Context, workingDir string, varFile strin
 	
 	output, err := e.runCommand(cmd)
 	if err != nil {
-		return fmt.Errorf("terraform destroy failed: %w\nOutput: %s", err, output)
+		return clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformDestroyFailed,
+			"Terraform destroy failed",
+			err,
+		).WithDetails(fmt.Sprintf("Working directory: %s\nOutput: %s", workingDir, output))
 	}
 	
 	e.logger.Success("Terraform destroy completed successfully")
@@ -138,7 +155,11 @@ func (e *Executor) Output(ctx context.Context, workingDir string, outputName str
 	
 	output, err := e.runCommand(cmd)
 	if err != nil {
-		return "", fmt.Errorf("terraform output failed: %w\nOutput: %s", err, output)
+		return "", clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformOutputFailed,
+			"Terraform output failed",
+			err,
+		).WithDetails(fmt.Sprintf("Working directory: %s, Output name: %s\nOutput: %s", workingDir, outputName, output))
 	}
 	
 	return strings.TrimSpace(output), nil

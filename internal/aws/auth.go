@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	clierrors "github.com/devplatform/devplatform-cli/internal/errors"
 )
 
 // AuthValidator handles AWS credential validation
@@ -32,7 +33,11 @@ func NewAuthValidator(ctx context.Context, region string, profile string) (*Auth
 	}
 	
 	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS configuration: %w", err)
+		return nil, clierrors.NewAuthError(
+			clierrors.ErrCodeAuthMissingCredentials,
+			"Failed to load AWS configuration",
+			err,
+		).WithDetails(fmt.Sprintf("Region: %s, Profile: %s", region, profile))
 	}
 	
 	return &AuthValidator{cfg: cfg}, nil
@@ -44,7 +49,11 @@ func (a *AuthValidator) ValidateCredentials(ctx context.Context) error {
 	
 	_, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
-		return fmt.Errorf("AWS credentials are invalid or expired: %w", err)
+		return clierrors.NewAuthError(
+			clierrors.ErrCodeAuthInvalidCredentials,
+			"AWS credentials are invalid or expired",
+			err,
+		).WithDetails("Check AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, or AWS profile configuration")
 	}
 	
 	return nil
@@ -56,7 +65,11 @@ func (a *AuthValidator) GetCallerIdentity(ctx context.Context) (*CallerIdentity,
 	
 	result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get caller identity: %w", err)
+		return nil, clierrors.NewAuthError(
+			clierrors.ErrCodeAuthInvalidCredentials,
+			"Failed to get AWS caller identity",
+			err,
+		)
 	}
 	
 	return &CallerIdentity{
