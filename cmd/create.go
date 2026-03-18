@@ -172,12 +172,18 @@ func executeCreate(cmd *cobra.Command, opts *CreateOptions) error {
 		log.Warn(fmt.Sprintf("Failed to calculate cost estimate: %v", err))
 	}
 
+	// Step 6: Run Terraform plan or apply
 	if opts.DryRun {
-		log.Info("Dry-run complete. No resources were created.")
+		// In dry-run mode, run terraform plan to show what would be created
+		if err := planInfrastructure(ctx, cloudProvider, opts, cfg, log); err != nil {
+			return fmt.Errorf("infrastructure planning failed: %w", err)
+		}
+		log.Info("\n✓ Dry-run complete. No resources were created.")
+		log.Info("To create these resources, run the command without --dry-run flag")
 		return nil
 	}
 
-	// Step 6: Provision infrastructure with Terraform
+	// Provision infrastructure with Terraform
 	if err := provisionInfrastructure(ctx, cloudProvider, opts, cfg, log); err != nil {
 		log.Error("Infrastructure provisioning failed. No rollback needed as no resources were created.")
 		return fmt.Errorf("infrastructure provisioning failed: %w", err)
@@ -306,7 +312,7 @@ func initializeProvider(ctx context.Context, opts *CreateOptions, cfg *config.Co
 
 // validateCredentials validates cloud provider credentials
 func validateCredentials(ctx context.Context, cloudProvider provider.CloudProvider, log *logger.Logger) error {
-	log.Info("Validating cloud provider credentials...")
+	log.Info("⏳ Validating cloud provider credentials...")
 	
 	if err := cloudProvider.ValidateCredentials(ctx); err != nil {
 		if cliErr, ok := err.(*clierrors.CLIError); ok {
@@ -331,32 +337,34 @@ func validateCredentials(ctx context.Context, cloudProvider provider.CloudProvid
 		)
 	}
 
-	log.Success(fmt.Sprintf("Authenticated as: %s (Account: %s)", identity.UserId, identity.Account))
+	log.Success(fmt.Sprintf("✓ Authenticated as: %s (Account: %s)", identity.UserId, identity.Account))
 	return nil
 }
 
 // displayCostEstimate calculates and displays the cost estimate
 func displayCostEstimate(cloudProvider provider.CloudProvider, environment string, log *logger.Logger) error {
-	log.Info("Calculating cost estimate...")
+	log.Info("⏳ Calculating cost estimate...")
 	
 	costs, err := cloudProvider.CalculateTotalCost(environment)
 	if err != nil {
 		return err
 	}
 
-	log.Info(fmt.Sprintf("\n=== Cost Estimate for %s environment ===", environment))
-	log.Info(fmt.Sprintf("Network:  $%.2f/month", costs.NetworkCost))
-	log.Info(fmt.Sprintf("Database: $%.2f/month", costs.DatabaseCost))
-	log.Info(fmt.Sprintf("K8s:      $%.2f/month", costs.K8sCost))
-	log.Info(fmt.Sprintf("Total:    $%.2f/month", costs.TotalCost))
-	log.Info("=========================================\n")
+	log.Info(fmt.Sprintf("\n💰 === Cost Estimate for %s environment ===", environment))
+	log.Info(fmt.Sprintf("   Network:  $%.2f/month", costs.NetworkCost))
+	log.Info(fmt.Sprintf("   Database: $%.2f/month", costs.DatabaseCost))
+	log.Info(fmt.Sprintf("   K8s:      $%.2f/month", costs.K8sCost))
+	log.Info(fmt.Sprintf("   ─────────────────────────────"))
+	log.Info(fmt.Sprintf("   Total:    $%.2f/month", costs.TotalCost))
+	log.Info("   ==========================================\n")
 
 	return nil
 }
 
-// provisionInfrastructure provisions the infrastructure using Terraform
-func provisionInfrastructure(ctx context.Context, cloudProvider provider.CloudProvider, opts *CreateOptions, cfg *config.Config, log *logger.Logger) error {
-	log.Info("Provisioning infrastructure with Terraform...")
+// planInfrastructure runs terraform plan to show what would be created (dry-run mode)
+func planInfrastructure(ctx context.Context, cloudProvider provider.CloudProvider, opts *CreateOptions, cfg *config.Config, log *logger.Logger) error {
+	log.Info("Planning infrastructure changes with Terraform...")
+	log.Info("⏳ Initializing Terraform...")
 
 	// Create Terraform executor
 	tfExecutor := terraform.NewExecutor(log)
@@ -376,6 +384,59 @@ func provisionInfrastructure(ctx context.Context, cloudProvider provider.CloudPr
 		)
 	}
 
+	log.Success("✓ Terraform initialized")
+	log.Info("⏳ Generating execution plan...")
+
+	// Generate variable file path
+	varFile := fmt.Sprintf("%s-%s.tfvars", opts.AppName, opts.Environment)
+
+	// Run Terraform plan
+	planOutput, err := tfExecutor.Plan(ctx, workingDir, varFile)
+	if err != nil {
+		if cliErr, ok := err.(*clierrors.CLIError); ok {
+			return cliErr
+		}
+		return clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformPlanFailed,
+			"Failed to generate Terraform plan",
+			err,
+		)
+	}
+
+	log.Success("✓ Terraform plan generated")
+	log.Info("\n=== Planned Infrastructure Changes ===")
+	log.Info(planOutput)
+	log.Info("======================================\n")
+
+	return nil
+}
+
+// provisionInfrastructure provisions the infrastructure using Terraform
+func provisionInfrastructure(ctx context.Context, cloudProvider provider.CloudProvider, opts *CreateOptions, cfg *config.Config, log *logger.Logger) error {
+	log.Info("Provisioning infrastructure with Terraform...")
+	log.Info("⏳ Initializing Terraform...")
+
+	// Create Terraform executor
+	tfExecutor := terraform.NewExecutor(log)
+
+	// Determine working directory
+	workingDir := filepath.Join("terraform", "environments", opts.Provider)
+
+	// Initialize Terraform
+	if err := tfExecutor.Init(ctx, workingDir); err != nil {
+		if cliErr, ok := err.(*clierrors.CLIError); ok {
+			return cliErr
+		}
+		return clierrors.NewTerraformError(
+			clierrors.ErrCodeTerraformInitFailed,
+			"Failed to initialize Terraform",
+			err,
+		)
+	}
+
+	log.Success("✓ Terraform initialized")
+	log.Info("⏳ Applying infrastructure changes (this may take several minutes)...")
+
 	// Generate variable file path
 	varFile := fmt.Sprintf("%s-%s.tfvars", opts.AppName, opts.Environment)
 
@@ -391,13 +452,14 @@ func provisionInfrastructure(ctx context.Context, cloudProvider provider.CloudPr
 		)
 	}
 
-	log.Success("Infrastructure provisioned successfully")
+	log.Success("✓ Infrastructure provisioned successfully")
 	return nil
 }
 
 // deployApplication deploys the application using Helm
 func deployApplication(ctx context.Context, opts *CreateOptions, cfg *config.Config, log *logger.Logger) error {
 	log.Info("Deploying application with Helm...")
+	log.Info("⏳ Preparing Helm release...")
 
 	// Create Helm client
 	helmClient := helm.NewClient(*log)
@@ -433,9 +495,11 @@ func deployApplication(ctx context.Context, opts *CreateOptions, cfg *config.Con
 	}
 
 	// Try install first
+	log.Info("⏳ Installing Helm chart (this may take a few minutes)...")
 	err := helmClient.Install(ctx, installOpts)
 	if err != nil {
 		// If install fails, try upgrade with --install flag
+		log.Info("⏳ Upgrading existing release...")
 		upgradeOpts := helm.UpgradeOptions{
 			ReleaseName: releaseName,
 			Chart:       chartPath,
@@ -458,6 +522,9 @@ func deployApplication(ctx context.Context, opts *CreateOptions, cfg *config.Con
 		}
 	}
 
+	log.Success("✓ Helm chart deployed")
+	log.Info("⏳ Verifying pod readiness...")
+
 	// Verify pods are ready
 	verifier, err := helm.NewPodVerifier(*log)
 	if err != nil {
@@ -465,23 +532,25 @@ func deployApplication(ctx context.Context, opts *CreateOptions, cfg *config.Con
 	} else {
 		if _, err := verifier.VerifyPods(ctx, namespace, 5*time.Minute); err != nil {
 			log.Warn(fmt.Sprintf("Pod verification failed: %v", err))
+		} else {
+			log.Success("✓ All pods are ready")
 		}
 	}
 
-	log.Success("Application deployed successfully")
+	log.Success("✓ Application deployed successfully")
 	return nil
 }
 
 // configureKubectl configures kubectl access to the cluster
 func configureKubectl(cloudProvider provider.CloudProvider, opts *CreateOptions, log *logger.Logger) error {
-	log.Info("Configuring kubectl access...")
+	log.Info("⏳ Configuring kubectl access...")
 
 	clusterName := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
 	if err := cloudProvider.UpdateKubeconfig(clusterName); err != nil {
 		return err
 	}
 
-	log.Success("kubectl configured successfully")
+	log.Success("✓ kubectl configured successfully")
 	return nil
 }
 
@@ -490,18 +559,18 @@ func displaySuccessMessage(cloudProvider provider.CloudProvider, opts *CreateOpt
 	clusterName := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
 	namespace := fmt.Sprintf("%s-%s", opts.AppName, opts.Environment)
 
-	log.Success("\n=== Deployment Complete ===")
-	log.Info(fmt.Sprintf("Application: %s", opts.AppName))
-	log.Info(fmt.Sprintf("Environment: %s", opts.Environment))
-	log.Info(fmt.Sprintf("Provider: %s", opts.Provider))
-	log.Info("\nTo connect to your cluster, run:")
+	log.Success("\n🎉 === Deployment Complete ===")
+	log.Info(fmt.Sprintf("   Application: %s", opts.AppName))
+	log.Info(fmt.Sprintf("   Environment: %s", opts.Environment))
+	log.Info(fmt.Sprintf("   Provider:    %s", opts.Provider))
+	log.Info("\n📋 To connect to your cluster, run:")
 
 	commands := cloudProvider.GetConnectionCommands(clusterName, namespace)
 	for _, cmd := range commands {
-		log.Info(fmt.Sprintf("  %s", cmd))
+		log.Info(fmt.Sprintf("   %s", cmd))
 	}
 
-	log.Info("\n===========================\n")
+	log.Info("\n   ==============================\n")
 }
 
 // rollback performs rollback operations when deployment fails
