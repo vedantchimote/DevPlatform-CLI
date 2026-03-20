@@ -366,14 +366,14 @@ This implementation plan breaks down the DevPlatform CLI into discrete coding ta
     - Update kubeconfig (aws eks or az aks) and display connection information
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 7.1, 7.2, 7.3, 20.1, 26.1, 26.3, 27.1, 28.1, 28.2, 28.3_
 
-  - [ ] 13.3 Implement dry-run mode
+  - [x] 13.3 Implement dry-run mode
     - Execute terraform plan instead of apply when dry-run flag is set
     - Skip Helm installation in dry-run mode
     - Display planned changes and cost estimate
     - Clearly indicate dry-run mode in output
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-  - [ ] 13.4 Implement progress indicators
+  - [x] 13.4 Implement progress indicators
     - Display progress messages during long operations
     - Show spinner or progress bar for terraform apply and helm install
     - _Requirements: 16.4_
@@ -384,14 +384,14 @@ This implementation plan breaks down the DevPlatform CLI into discrete coding ta
     - Test error handling paths
     - _Requirements: 1.1, 7.1, 7.2_
 
-- [ ] 14. Implement error handling and rollback
-  - [ ] 14.1 Create error types and categories
+- [x] 14. Implement error handling and rollback
+  - [x] 14.1 Create error types and categories
     - Define `CLIError` struct in `internal/errors/errors.go`
     - Define error categories: authentication, validation, terraform, helm, network, configuration
     - Assign error codes to each category (1000-1099 for auth, 1100-1199 for validation, etc.)
     - _Requirements: 1.5, 2.4, 8.4_
 
-  - [ ] 14.2 Implement rollback logic
+  - [x] 14.2 Implement rollback logic
     - Create rollback function in create command
     - Execute helm uninstall on Helm failure
     - Execute terraform destroy on Terraform failure
@@ -399,7 +399,7 @@ This implementation plan breaks down the DevPlatform CLI into discrete coding ta
     - Display manual cleanup instructions if rollback fails
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
 
-  - [ ] 14.3 Implement error message formatting
+  - [x] 14.3 Implement error message formatting
     - Format errors with category, code, message, details, resolution
     - Display log file path in error messages
     - _Requirements: 8.4, 18.4_
