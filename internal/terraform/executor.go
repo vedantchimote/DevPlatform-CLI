@@ -145,9 +145,16 @@ func (e *Executor) Destroy(ctx context.Context, workingDir string, varFile strin
 
 // Output retrieves the output values from the state
 func (e *Executor) Output(ctx context.Context, workingDir string, outputName string) (string, error) {
-	args := []string{"output", "-raw"}
-	if outputName != "" {
-		args = append(args, outputName)
+	var args []string
+	if outputName == "-json" {
+		// Special case for JSON output of all values
+		args = []string{"output", "-json"}
+	} else if outputName != "" {
+		// Get a specific output value in raw format
+		args = []string{"output", "-raw", outputName}
+	} else {
+		// Get all outputs in human-readable format
+		args = []string{"output"}
 	}
 	
 	cmd := exec.CommandContext(ctx, "terraform", args...)
