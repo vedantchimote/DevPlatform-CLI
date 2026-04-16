@@ -77,8 +77,8 @@ changelog:
 
 release:
   github:
-    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
-    name: "{{ .ProjectName }}"
+    owner: vedantchimote
+    name: DevPlatform-CLI
   name_template: "{{.ProjectName}} {{.Version}}"
   draft: false
   prerelease: auto
@@ -112,15 +112,15 @@ release:
     
     ### What's Changed
   footer: |
-    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/vedantchimote/DevPlatform-CLI/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
   - name: devplatform-cli
     repository:
-      owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+      owner: vedantchimote
       name: homebrew-tap
     folder: Formula
-    homepage: https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/devplatform-cli
+    homepage: https://github.com/vedantchimote/DevPlatform-CLI
     description: "Internal Developer Platform CLI for provisioning cloud infrastructure"
     license: MIT
     test: |
@@ -132,7 +132,7 @@ nfpms:
   - id: devplatform-cli
     package_name: devplatform-cli
     vendor: DevPlatform
-    homepage: https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/devplatform-cli
+    homepage: https://github.com/vedantchimote/DevPlatform-CLI
     maintainer: DevPlatform Team
     description: Internal Developer Platform CLI for provisioning cloud infrastructure
     license: MIT
