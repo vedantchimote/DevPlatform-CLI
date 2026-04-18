@@ -1,0 +1,48 @@
+{
+  "cluster": {
+    "name": "testapp-dev-eks",
+    "arn": "arn:aws:eks:us-east-1:123456789012:cluster/testapp-dev-eks",
+    "createdAt": "2024-01-15T10:00:00.000Z",
+    "version": "1.28",
+    "endpoint": "https://ABCDEF123456.gr7.us-east-1.eks.amazonaws.com",
+    "roleArn": "arn:aws:iam::123456789012:role/testapp-dev-eks-cluster-role",
+    "resourcesVpcConfig": {
+      "subnetIds": [
+        "subnet-0123456789abcdef0",
+        "subnet-0123456789abcdef1"
+      ],
+      "securityGroupIds": [
+        "sg-0123456789abcdef0"
+      ],
+      "clusterSecurityGroupId": "sg-0123456789abcdef1",
+      "vpcId": "vpc-0123456789abcdef0",
+      "endpointPublicAccess": true,
+      "endpointPrivateAccess": false,
+      "publicAccessCidrs": [
+        "0.0.0.0/0"
+      ]
+    },
+    "logging": {
+      "clusterLogging": [
+        {
+          "types": [
+            "api",
+            "audit",
+            "authenticator"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "status": "ACTIVE",
+    "certificateAuthority": {
+      "data": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lJZVlHOXNHNzRRdUV3RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TkRBeE1UVXhNREF3TURCYUZ3MHpOREF4TVRJeE1EQTFNREJhTUJVeApFekFSQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLCkFvSUJBUURhbmJLcXhxdz09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+    },
+    "platformVersion": "eks.5",
+    "tags": {
+      "Environment": "dev",
+      "ManagedBy": "devplatform-cli",
+      "Application": "testapp"
+    }
+  }
+}

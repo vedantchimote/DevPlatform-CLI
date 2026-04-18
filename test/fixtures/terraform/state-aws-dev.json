@@ -1,0 +1,36 @@
+{
+  "version": 4,
+  "terraform_version": "1.6.0",
+  "serial": 1,
+  "lineage": "test-lineage-12345",
+  "outputs": {
+    "vpc_id": {
+      "value": "vpc-0123456789abcdef0",
+      "type": "string"
+    },
+    "subnet_ids": {
+      "value": [
+        "subnet-0123456789abcdef0",
+        "subnet-0123456789abcdef1"
+      ],
+      "type": ["list", "string"]
+    },
+    "eks_cluster_name": {
+      "value": "testapp-dev-eks",
+      "type": "string"
+    },
+    "eks_cluster_endpoint": {
+      "value": "https://ABCDEF123456.gr7.us-east-1.eks.amazonaws.com",
+      "type": "string"
+    },
+    "rds_endpoint": {
+      "value": "testapp-dev-db.c9akciq32.us-east-1.rds.amazonaws.com:5432",
+      "type": "string"
+    },
+    "rds_database_name": {
+      "value": "testapp_dev",
+      "type": "string"
+    }
+  },
+  "resources": []
+}

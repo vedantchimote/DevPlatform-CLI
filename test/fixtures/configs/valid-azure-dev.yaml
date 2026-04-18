@@ -1,0 +1,33 @@
+# Valid Azure development configuration
+global:
+  cloud_provider: azure
+  timeout: 3600
+  log_level: debug
+
+azure:
+  subscription_id: 12345678-1234-1234-1234-123456789abc
+  location: eastus
+  tenant_id: 87654321-4321-4321-4321-cba987654321
+
+environments:
+  dev:
+    network_cidr: 10.0.0.0/16
+    db_instance_class: Standard_B1ms
+    db_allocated_storage: 32
+    db_multi_az: false
+    k8s_node_count: 2
+
+terraform:
+  backend:
+    type: azurerm
+    storage_account_name: devplatformstatedev
+    container_name: tfstate
+    resource_group_name: devplatform-state-rg
+  modules_path: terraform/modules
+
+helm:
+  chart_path: charts/devplatform-base
+  default_values:
+    replicaCount: 1
+    image:
+      tag: latest

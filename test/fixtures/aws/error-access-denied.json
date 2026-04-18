@@ -1,0 +1,6 @@
+{
+  "Error": {
+    "Code": "AccessDenied",
+    "Message": "User: arn:aws:iam::123456789012:user/devplatform-cli is not authorized to perform: eks:DescribeCluster on resource: arn:aws:eks:us-east-1:123456789012:cluster/testapp-dev-eks"
+  }
+}

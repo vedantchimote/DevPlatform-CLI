@@ -1,0 +1,30 @@
+{
+  "name": "testapp-staging",
+  "info": {
+    "first_deployed": "2024-01-15T11:00:00Z",
+    "last_deployed": "2024-01-15T11:05:00Z",
+    "deleted": "",
+    "description": "Upgrade failed: timed out waiting for the condition",
+    "status": "failed",
+    "notes": ""
+  },
+  "chart": {
+    "metadata": {
+      "name": "devplatform-base",
+      "version": "0.1.0",
+      "description": "Base Helm chart for DevPlatform applications",
+      "apiVersion": "v2",
+      "appVersion": "1.0.0",
+      "type": "application"
+    }
+  },
+  "config": {
+    "app": {
+      "name": "testapp",
+      "environment": "staging"
+    },
+    "replicaCount": 2
+  },
+  "version": 2,
+  "namespace": "default"
+}

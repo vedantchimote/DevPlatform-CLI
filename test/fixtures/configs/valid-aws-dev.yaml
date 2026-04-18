@@ -1,0 +1,32 @@
+# Valid AWS development configuration
+global:
+  cloud_provider: aws
+  timeout: 3600
+  log_level: info
+
+aws:
+  region: us-east-1
+  aws_profile: default
+
+environments:
+  dev:
+    network_cidr: 10.0.0.0/16
+    db_instance_class: db.t3.micro
+    db_allocated_storage: 20
+    db_multi_az: false
+    k8s_node_count: 2
+
+terraform:
+  backend:
+    type: s3
+    bucket: devplatform-terraform-state-dev
+    dynamodb_table: devplatform-terraform-locks
+    region: us-east-1
+  modules_path: terraform/modules
+
+helm:
+  chart_path: charts/devplatform-base
+  default_values:
+    replicaCount: 1
+    image:
+      tag: latest

@@ -1,0 +1,30 @@
+{
+  "vpc_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "vpc-0123456789abcdef0"
+  },
+  "subnet_ids": {
+    "sensitive": false,
+    "type": ["list", "string"],
+    "value": [
+      "subnet-0123456789abcdef0",
+      "subnet-0123456789abcdef1"
+    ]
+  },
+  "eks_cluster_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "testapp-dev-eks"
+  },
+  "eks_cluster_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://ABCDEF123456.gr7.us-east-1.eks.amazonaws.com"
+  },
+  "rds_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "testapp-dev-db.c9akciq32.us-east-1.rds.amazonaws.com:5432"
+  }
+}

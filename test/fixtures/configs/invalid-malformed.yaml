@@ -1,0 +1,14 @@
+# Invalid configuration - malformed YAML syntax
+global:
+  cloud_provider: aws
+  timeout: 3600
+  log_level: info
+    indentation_error: true
+
+aws:
+  region: us-east-1
+  aws_profile: [unclosed bracket
+
+environments:
+  dev:
+    network_cidr: 10.0.0.0/16

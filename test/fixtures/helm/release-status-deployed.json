@@ -1,0 +1,30 @@
+{
+  "name": "testapp-dev",
+  "info": {
+    "first_deployed": "2024-01-15T10:30:00Z",
+    "last_deployed": "2024-01-15T10:30:00Z",
+    "deleted": "",
+    "description": "Install complete",
+    "status": "deployed",
+    "notes": "Application deployed successfully!\n\nGet the application URL by running:\n  kubectl port-forward svc/testapp-dev 8080:80\n"
+  },
+  "chart": {
+    "metadata": {
+      "name": "devplatform-base",
+      "version": "0.1.0",
+      "description": "Base Helm chart for DevPlatform applications",
+      "apiVersion": "v2",
+      "appVersion": "1.0.0",
+      "type": "application"
+    }
+  },
+  "config": {
+    "app": {
+      "name": "testapp",
+      "environment": "dev"
+    },
+    "replicaCount": 1
+  },
+  "version": 1,
+  "namespace": "default"
+}

@@ -1,0 +1,13 @@
+# Invalid Helm values - missing required fields
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  tag: "1.25"
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Missing app.name and app.environment which are required

@@ -1,0 +1,36 @@
+# Valid AWS production configuration
+global:
+  cloud_provider: aws
+  timeout: 7200
+  log_level: warn
+
+aws:
+  region: us-east-1
+  aws_profile: production
+
+environments:
+  prod:
+    network_cidr: 10.2.0.0/16
+    db_instance_class: db.r5.large
+    db_allocated_storage: 500
+    db_multi_az: true
+    k8s_node_count: 5
+
+terraform:
+  backend:
+    type: s3
+    bucket: devplatform-terraform-state-prod
+    dynamodb_table: devplatform-terraform-locks
+    region: us-east-1
+  modules_path: terraform/modules
+
+helm:
+  chart_path: charts/devplatform-base
+  default_values:
+    replicaCount: 3
+    image:
+      tag: v1.0.0
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10

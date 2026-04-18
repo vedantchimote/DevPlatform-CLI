@@ -1,0 +1,37 @@
+# Valid Azure production configuration
+global:
+  cloud_provider: azure
+  timeout: 7200
+  log_level: warn
+
+azure:
+  subscription_id: 12345678-1234-1234-1234-123456789abc
+  location: eastus
+  tenant_id: 87654321-4321-4321-4321-cba987654321
+
+environments:
+  prod:
+    network_cidr: 10.2.0.0/16
+    db_instance_class: Standard_D4s_v3
+    db_allocated_storage: 512
+    db_multi_az: true
+    k8s_node_count: 5
+
+terraform:
+  backend:
+    type: azurerm
+    storage_account_name: devplatformstateprod
+    container_name: tfstate
+    resource_group_name: devplatform-state-rg
+  modules_path: terraform/modules
+
+helm:
+  chart_path: charts/devplatform-base
+  default_values:
+    replicaCount: 3
+    image:
+      tag: v1.0.0
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10

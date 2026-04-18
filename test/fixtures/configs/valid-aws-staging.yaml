@@ -1,0 +1,32 @@
+# Valid AWS staging configuration
+global:
+  cloud_provider: aws
+  timeout: 3600
+  log_level: info
+
+aws:
+  region: us-west-2
+  aws_profile: staging
+
+environments:
+  staging:
+    network_cidr: 10.1.0.0/16
+    db_instance_class: db.t3.medium
+    db_allocated_storage: 100
+    db_multi_az: false
+    k8s_node_count: 3
+
+terraform:
+  backend:
+    type: s3
+    bucket: devplatform-terraform-state-staging
+    dynamodb_table: devplatform-terraform-locks
+    region: us-west-2
+  modules_path: terraform/modules
+
+helm:
+  chart_path: charts/devplatform-base
+  default_values:
+    replicaCount: 2
+    image:
+      tag: stable

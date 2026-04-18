@@ -1,0 +1,15 @@
+# Invalid Helm values - malformed YAML
+app:
+  name: testapp
+  environment: dev
+
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  tag: "1.25"
+    invalid_indentation: true
+
+replicaCount: [unclosed bracket
+
+service:
+  type: ClusterIP

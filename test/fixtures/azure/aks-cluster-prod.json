@@ -1,0 +1,61 @@
+{
+  "id": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourcegroups/testapp-prod-rg/providers/Microsoft.ContainerService/managedClusters/testapp-prod-aks",
+  "location": "eastus",
+  "name": "testapp-prod-aks",
+  "type": "Microsoft.ContainerService/ManagedClusters",
+  "properties": {
+    "provisioningState": "Succeeded",
+    "kubernetesVersion": "1.28.3",
+    "dnsPrefix": "testapp-prod-aks-dns",
+    "fqdn": "testapp-prod-aks-dns-12345678.hcp.eastus.azmk8s.io",
+    "azurePortalFQDN": "testapp-prod-aks-dns-12345678.portal.hcp.eastus.azmk8s.io",
+    "agentPoolProfiles": [
+      {
+        "name": "nodepool1",
+        "count": 5,
+        "vmSize": "Standard_D4s_v3",
+        "osDiskSizeGB": 128,
+        "osDiskType": "Managed",
+        "maxPods": 110,
+        "type": "VirtualMachineScaleSets",
+        "availabilityZones": [
+          "1",
+          "2",
+          "3"
+        ],
+        "enableAutoScaling": true,
+        "minCount": 3,
+        "maxCount": 10,
+        "mode": "System",
+        "osType": "Linux",
+        "osSKU": "Ubuntu",
+        "nodeImageVersion": "AKSUbuntu-2204gen2containerd-202401.09.0"
+      }
+    ],
+    "networkProfile": {
+      "networkPlugin": "azure",
+      "loadBalancerSku": "standard",
+      "serviceCidr": "10.2.0.0/16",
+      "dnsServiceIP": "10.2.0.10",
+      "dockerBridgeCidr": "172.17.0.1/16",
+      "outboundType": "loadBalancer"
+    },
+    "enableRBAC": true,
+    "enablePodSecurityPolicy": false,
+    "nodeResourceGroup": "MC_testapp-prod-rg_testapp-prod-aks_eastus",
+    "addonProfiles": {
+      "azureKeyvaultSecretsProvider": {
+        "enabled": true
+      },
+      "azurepolicy": {
+        "enabled": true
+      }
+    }
+  },
+  "tags": {
+    "Environment": "prod",
+    "ManagedBy": "devplatform-cli",
+    "Application": "testapp",
+    "CostCenter": "engineering"
+  }
+}

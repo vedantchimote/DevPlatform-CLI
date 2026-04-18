@@ -1,0 +1,84 @@
+{
+  "DBInstance": {
+    "DBInstanceIdentifier": "testapp-dev-db",
+    "DBInstanceClass": "db.t3.micro",
+    "Engine": "postgres",
+    "EngineVersion": "15.4",
+    "DBInstanceStatus": "available",
+    "MasterUsername": "dbadmin",
+    "Endpoint": {
+      "Address": "testapp-dev-db.c9akciq32.us-east-1.rds.amazonaws.com",
+      "Port": 5432,
+      "HostedZoneId": "Z2R2ITUGPM61AM"
+    },
+    "AllocatedStorage": 20,
+    "InstanceCreateTime": "2024-01-15T10:15:00.000Z",
+    "PreferredBackupWindow": "03:00-04:00",
+    "BackupRetentionPeriod": 7,
+    "DBSecurityGroups": [],
+    "VpcSecurityGroups": [
+      {
+        "VpcSecurityGroupId": "sg-0123456789abcdef0",
+        "Status": "active"
+      }
+    ],
+    "DBParameterGroups": [
+      {
+        "DBParameterGroupName": "default.postgres15",
+        "ParameterApplyStatus": "in-sync"
+      }
+    ],
+    "AvailabilityZone": "us-east-1a",
+    "DBSubnetGroup": {
+      "DBSubnetGroupName": "testapp-dev-db-subnet-group",
+      "DBSubnetGroupDescription": "Subnet group for testapp dev database",
+      "VpcId": "vpc-0123456789abcdef0",
+      "SubnetGroupStatus": "Complete",
+      "Subnets": [
+        {
+          "SubnetIdentifier": "subnet-0123456789abcdef0",
+          "SubnetAvailabilityZone": {
+            "Name": "us-east-1a"
+          },
+          "SubnetStatus": "Active"
+        },
+        {
+          "SubnetIdentifier": "subnet-0123456789abcdef1",
+          "SubnetAvailabilityZone": {
+            "Name": "us-east-1b"
+          },
+          "SubnetStatus": "Active"
+        }
+      ]
+    },
+    "PreferredMaintenanceWindow": "mon:04:00-mon:05:00",
+    "MultiAZ": false,
+    "AutoMinorVersionUpgrade": true,
+    "PubliclyAccessible": false,
+    "StorageType": "gp3",
+    "StorageEncrypted": true,
+    "DbiResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "CACertificateIdentifier": "rds-ca-2019",
+    "DomainMemberships": [],
+    "CopyTagsToSnapshot": true,
+    "MonitoringInterval": 0,
+    "DBInstanceArn": "arn:aws:rds:us-east-1:123456789012:db:testapp-dev-db",
+    "IAMDatabaseAuthenticationEnabled": false,
+    "PerformanceInsightsEnabled": false,
+    "DeletionProtection": false,
+    "TagList": [
+      {
+        "Key": "Environment",
+        "Value": "dev"
+      },
+      {
+        "Key": "ManagedBy",
+        "Value": "devplatform-cli"
+      },
+      {
+        "Key": "Application",
+        "Value": "testapp"
+      }
+    ]
+  }
+}

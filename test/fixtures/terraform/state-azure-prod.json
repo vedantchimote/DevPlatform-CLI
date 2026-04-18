@@ -1,0 +1,36 @@
+{
+  "version": 4,
+  "terraform_version": "1.6.0",
+  "serial": 5,
+  "lineage": "test-lineage-67890",
+  "outputs": {
+    "vnet_id": {
+      "value": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/testapp-prod-rg/providers/Microsoft.Network/virtualNetworks/testapp-prod-vnet",
+      "type": "string"
+    },
+    "subnet_ids": {
+      "value": [
+        "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/testapp-prod-rg/providers/Microsoft.Network/virtualNetworks/testapp-prod-vnet/subnets/subnet-1",
+        "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/testapp-prod-rg/providers/Microsoft.Network/virtualNetworks/testapp-prod-vnet/subnets/subnet-2"
+      ],
+      "type": ["list", "string"]
+    },
+    "aks_cluster_name": {
+      "value": "testapp-prod-aks",
+      "type": "string"
+    },
+    "aks_cluster_fqdn": {
+      "value": "testapp-prod-aks-dns-12345678.hcp.eastus.azmk8s.io",
+      "type": "string"
+    },
+    "postgres_server_fqdn": {
+      "value": "testapp-prod-postgres.postgres.database.azure.com",
+      "type": "string"
+    },
+    "postgres_database_name": {
+      "value": "testapp_prod",
+      "type": "string"
+    }
+  },
+  "resources": []
+}

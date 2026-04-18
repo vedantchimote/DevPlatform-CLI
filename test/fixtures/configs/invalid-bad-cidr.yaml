@@ -1,0 +1,17 @@
+# Invalid configuration - invalid CIDR block
+global:
+  cloud_provider: aws
+  timeout: 3600
+  log_level: info
+
+aws:
+  region: us-east-1
+  aws_profile: default
+
+environments:
+  dev:
+    network_cidr: 999.999.999.999/99
+    db_instance_class: db.t3.micro
+    db_allocated_storage: 20
+    db_multi_az: false
+    k8s_node_count: 2

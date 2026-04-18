@@ -1,0 +1,38 @@
+{
+  "PriceList": [
+    {
+      "product": {
+        "productFamily": "Compute Instance",
+        "attributes": {
+          "instanceType": "t3.micro",
+          "vcpu": "2",
+          "memory": "1 GiB",
+          "storage": "EBS only",
+          "networkPerformance": "Up to 5 Gigabit",
+          "processorArchitecture": "64-bit",
+          "tenancy": "Shared",
+          "operatingSystem": "Linux",
+          "location": "US East (N. Virginia)",
+          "locationType": "AWS Region",
+          "regionCode": "us-east-1"
+        }
+      },
+      "serviceCode": "AmazonEC2",
+      "terms": {
+        "OnDemand": {
+          "JRTCKXETXF.JRTCKXETXF": {
+            "priceDimensions": {
+              "JRTCKXETXF.JRTCKXETXF.6YS6EN2CT7": {
+                "unit": "Hrs",
+                "pricePerUnit": {
+                  "USD": "0.0104"
+                },
+                "description": "$0.0104 per On Demand Linux t3.micro Instance Hour"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

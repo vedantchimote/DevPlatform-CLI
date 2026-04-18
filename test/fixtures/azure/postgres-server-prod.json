@@ -1,0 +1,46 @@
+{
+  "id": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/testapp-prod-rg/providers/Microsoft.DBforPostgreSQL/flexibleServers/testapp-prod-postgres",
+  "location": "eastus",
+  "name": "testapp-prod-postgres",
+  "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+  "properties": {
+    "administratorLogin": "dbadmin",
+    "version": "15",
+    "state": "Ready",
+    "fullyQualifiedDomainName": "testapp-prod-postgres.postgres.database.azure.com",
+    "storage": {
+      "storageSizeGB": 512,
+      "autoGrow": "Enabled"
+    },
+    "backup": {
+      "backupRetentionDays": 7,
+      "geoRedundantBackup": "Enabled",
+      "earliestRestoreDate": "2024-01-15T10:30:00.000Z"
+    },
+    "network": {
+      "publicNetworkAccess": "Disabled",
+      "delegatedSubnetResourceId": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/testapp-prod-rg/providers/Microsoft.Network/virtualNetworks/testapp-prod-vnet/subnets/database-subnet"
+    },
+    "highAvailability": {
+      "mode": "ZoneRedundant",
+      "state": "Healthy"
+    },
+    "maintenanceWindow": {
+      "customWindow": "Enabled",
+      "dayOfWeek": 0,
+      "startHour": 4,
+      "startMinute": 0
+    },
+    "availabilityZone": "1"
+  },
+  "sku": {
+    "name": "Standard_D4s_v3",
+    "tier": "GeneralPurpose"
+  },
+  "tags": {
+    "Environment": "prod",
+    "ManagedBy": "devplatform-cli",
+    "Application": "testapp",
+    "CostCenter": "engineering"
+  }
+}

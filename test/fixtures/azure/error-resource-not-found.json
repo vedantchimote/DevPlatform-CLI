@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "ResourceNotFound",
+    "message": "The Resource 'Microsoft.ContainerService/managedClusters/testapp-dev-aks' under resource group 'testapp-dev-rg' was not found."
+  }
+}
