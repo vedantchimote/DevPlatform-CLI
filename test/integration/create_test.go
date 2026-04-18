@@ -119,7 +119,7 @@ func TestCreateWorkflow_InvalidInputs(t *testing.T) {
 			environment: "dev",
 			provider:    "aws",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationMissingRequired,
+			errorCode:   "1105", // ErrCodeValidationMissingRequired
 		},
 		{
 			name:        "app name too short",
@@ -127,7 +127,7 @@ func TestCreateWorkflow_InvalidInputs(t *testing.T) {
 			environment: "dev",
 			provider:    "aws",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationInvalidAppName,
+			errorCode:   "1101", // ErrCodeValidationInvalidAppName
 		},
 		{
 			name:        "app name too long",
@@ -135,7 +135,7 @@ func TestCreateWorkflow_InvalidInputs(t *testing.T) {
 			environment: "dev",
 			provider:    "aws",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationInvalidAppName,
+			errorCode:   "1101", // ErrCodeValidationInvalidAppName
 		},
 		{
 			name:        "invalid environment",
@@ -143,7 +143,7 @@ func TestCreateWorkflow_InvalidInputs(t *testing.T) {
 			environment: "invalid",
 			provider:    "aws",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationInvalidEnvironment,
+			errorCode:   "1102", // ErrCodeValidationInvalidEnvironment
 		},
 		{
 			name:        "invalid provider",
@@ -151,7 +151,7 @@ func TestCreateWorkflow_InvalidInputs(t *testing.T) {
 			environment: "dev",
 			provider:    "gcp",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationInvalidProvider,
+			errorCode:   "1103", // ErrCodeValidationInvalidProvider
 		},
 	}
 

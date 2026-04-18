@@ -178,7 +178,7 @@ func TestDestroyWorkflow_InvalidInputs(t *testing.T) {
 			environment: "dev",
 			provider:    "aws",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationMissingRequired,
+			errorCode:   "1105", // ErrCodeValidationMissingRequired
 		},
 		{
 			name:        "invalid environment",
@@ -186,7 +186,7 @@ func TestDestroyWorkflow_InvalidInputs(t *testing.T) {
 			environment: "invalid",
 			provider:    "aws",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationInvalidEnvironment,
+			errorCode:   "1102", // ErrCodeValidationInvalidEnvironment
 		},
 		{
 			name:        "invalid provider",
@@ -194,7 +194,7 @@ func TestDestroyWorkflow_InvalidInputs(t *testing.T) {
 			environment: "dev",
 			provider:    "gcp",
 			expectError: true,
-			errorCode:   clierrors.ErrCodeValidationInvalidProvider,
+			errorCode:   "1103", // ErrCodeValidationInvalidProvider
 		},
 	}
 

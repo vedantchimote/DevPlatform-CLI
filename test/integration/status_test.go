@@ -137,7 +137,7 @@ func TestStatusWorkflow_InvalidInputs(t *testing.T) {
 			provider:     "aws",
 			outputFormat: "table",
 			expectError:  true,
-			errorCode:    clierrors.ErrCodeValidationMissingRequired,
+			errorCode:    "1105", // ErrCodeValidationMissingRequired
 		},
 		{
 			name:         "invalid environment",
@@ -146,7 +146,7 @@ func TestStatusWorkflow_InvalidInputs(t *testing.T) {
 			provider:     "aws",
 			outputFormat: "table",
 			expectError:  true,
-			errorCode:    clierrors.ErrCodeValidationInvalidEnvironment,
+			errorCode:    "1102", // ErrCodeValidationInvalidEnvironment
 		},
 		{
 			name:         "invalid provider",
@@ -155,7 +155,7 @@ func TestStatusWorkflow_InvalidInputs(t *testing.T) {
 			provider:     "gcp",
 			outputFormat: "table",
 			expectError:  true,
-			errorCode:    clierrors.ErrCodeValidationInvalidProvider,
+			errorCode:    "1103", // ErrCodeValidationInvalidProvider
 		},
 		{
 			name:         "invalid output format",
@@ -164,7 +164,7 @@ func TestStatusWorkflow_InvalidInputs(t *testing.T) {
 			provider:     "aws",
 			outputFormat: "xml",
 			expectError:  true,
-			errorCode:    clierrors.ErrCodeValidationInvalidConfig,
+			errorCode:    "1104", // ErrCodeValidationInvalidConfig
 		},
 	}
 

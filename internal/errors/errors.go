@@ -56,6 +56,7 @@ const (
 	ErrCodeTerraformApplyFailed   ErrorCode = 1203
 	ErrCodeTerraformDestroyFailed ErrorCode = 1204
 	ErrCodeTerraformOutputFailed  ErrorCode = 1205
+	ErrCodeTerraformStateNotFound ErrorCode = 1206
 	
 	// Helm error codes (1300-1399)
 	ErrCodeHelmInstallFailed   ErrorCode = 1301
@@ -64,6 +65,7 @@ const (
 	ErrCodeHelmStatusFailed    ErrorCode = 1304
 	ErrCodeHelmPodNotReady     ErrorCode = 1305
 	ErrCodeHelmTimeout         ErrorCode = 1306
+	ErrCodeHelmReleaseNotFound ErrorCode = 1307
 	
 	// Network error codes (1400-1499)
 	ErrCodeNetworkConnectionFailed ErrorCode = 1401

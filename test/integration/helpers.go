@@ -28,10 +28,7 @@ func SetupTestContext(t *testing.T) *TestContext {
 	t.Helper()
 
 	// Create logger with test mode
-	log := logger.New(logger.Config{
-		Level:  "info",
-		Format: "text",
-	})
+	log := logger.New(logger.InfoLevel, false)
 
 	// Create mock providers
 	mockAWS := mocks.NewMockAWSProvider()
