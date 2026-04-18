@@ -27,8 +27,8 @@ func mergeRecursive(dst, src Values) Values {
 	for key, srcVal := range src {
 		if dstVal, exists := dst[key]; exists {
 			// Both values exist, check if they are maps
-			srcMap, srcIsMap := srcVal.(map[string]interface{})
-			dstMap, dstIsMap := dstVal.(map[string]interface{})
+			srcMap, srcIsMap := toStringMap(srcVal)
+			dstMap, dstIsMap := toStringMap(dstVal)
 			
 			if srcIsMap && dstIsMap {
 				// Both are maps, merge recursively
@@ -44,6 +44,18 @@ func mergeRecursive(dst, src Values) Values {
 	}
 	
 	return dst
+}
+
+// toStringMap converts interface{} to map[string]interface{} if possible
+func toStringMap(val interface{}) (map[string]interface{}, bool) {
+	if m, ok := val.(map[string]interface{}); ok {
+		return m, true
+	}
+	// Handle Values type
+	if m, ok := val.(Values); ok {
+		return map[string]interface{}(m), true
+	}
+	return nil, false
 }
 
 // LoadValuesFile loads values from a YAML file
@@ -116,12 +128,14 @@ func getNestedValue(values Values, keyPath string) (interface{}, bool) {
 	current := interface{}(values)
 	
 	for _, key := range keys {
-		if m, ok := current.(map[string]interface{}); ok {
-			if val, exists := m[key]; exists {
-				current = val
-			} else {
-				return nil, false
-			}
+		// Try to convert to map[string]interface{} (handles both types)
+		m, ok := toStringMap(current)
+		if !ok {
+			return nil, false
+		}
+		
+		if val, exists := m[key]; exists {
+			current = val
 		} else {
 			return nil, false
 		}
@@ -141,13 +155,15 @@ func setNestedValue(values Values, keyPath string, value interface{}) {
 			current[key] = make(map[string]interface{})
 		}
 		
-		if m, ok := current[key].(map[string]interface{}); ok {
-			current = m
+		// Try to convert to map[string]interface{} (handles both types)
+		m, ok := toStringMap(current[key])
+		if ok {
+			current = Values(m)
 		} else {
 			// Overwrite non-map value with a map
 			newMap := make(map[string]interface{})
 			current[key] = newMap
-			current = newMap
+			current = Values(newMap)
 		}
 	}
 	

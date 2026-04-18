@@ -162,6 +162,11 @@ func GetErrorCategory(err error) string {
 		return "unknown"
 	}
 	
+	// Check invalid chart BEFORE release not found, since "chart not found" contains "not found"
+	if IsInvalidChart(err) {
+		return "invalid_chart"
+	}
+	
 	if IsReleaseNotFound(err) {
 		return "release_not_found"
 	}
@@ -172,10 +177,6 @@ func GetErrorCategory(err error) string {
 	
 	if IsResourceConflict(err) {
 		return "resource_conflict"
-	}
-	
-	if IsInvalidChart(err) {
-		return "invalid_chart"
 	}
 	
 	if IsInvalidValues(err) {
