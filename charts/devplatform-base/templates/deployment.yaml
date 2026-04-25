@@ -42,7 +42,8 @@ spec:
           protocol: TCP
         {{- if .Values.livenessProbe.enabled }}
         livenessProbe:
-          {{- toYaml .Values.livenessProbe.httpGet | nindent 10 }}
+          httpGet:
+            {{- toYaml .Values.livenessProbe.httpGet | nindent 12 }}
           initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -51,7 +52,8 @@ spec:
         {{- end }}
         {{- if .Values.readinessProbe.enabled }}
         readinessProbe:
-          {{- toYaml .Values.readinessProbe.httpGet | nindent 10 }}
+          httpGet:
+            {{- toYaml .Values.readinessProbe.httpGet | nindent 12 }}
           initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
