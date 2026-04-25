@@ -92,6 +92,8 @@ lerna-debug.log*
 
 # Testing
 coverage/
+coverage
+aws_coverage
 *.cover
 .hypothesis/
 .pytest_cache/
