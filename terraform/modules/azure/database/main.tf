@@ -52,8 +52,18 @@ resource "azurerm_key_vault" "db" {
   soft_delete_retention_days = 7
   purge_protection_enabled   = var.env_type == "prod" ? true : false
 
+  # Access policy for the Terraform executor (current user/SP)
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+
+    secret_permissions = [
+      "Get", "List", "Set", "Delete", "Purge", "Recover"
+    ]
+  }
+
   network_acls {
-    default_action = "Deny"
+    default_action = "Allow"
     bypass         = "AzureServices"
   }
 

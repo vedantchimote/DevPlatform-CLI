@@ -45,6 +45,12 @@ variable "keyvault_id" {
   default     = ""
 }
 
+variable "enable_keyvault_access" {
+  description = "Enable Key Vault access for workload identity"
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)

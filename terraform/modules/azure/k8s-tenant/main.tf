@@ -154,7 +154,7 @@ resource "azurerm_federated_identity_credential" "workload" {
 
 # Grant Key Vault access to workload identity
 resource "azurerm_role_assignment" "keyvault_secrets_user" {
-  count                = var.keyvault_id != "" ? 1 : 0
+  count                = var.enable_keyvault_access ? 1 : 0
   scope                = var.keyvault_id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
